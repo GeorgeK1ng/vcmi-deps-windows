@@ -53,13 +53,15 @@ jobs:
       # ✅ Build genperf manually from yasm source
       - name: Build genperf manually (only for arm64)
         if: matrix.triplet == 'arm64-windows'
-        shell: pwsh
+        shell: cmd
         run: |
           git clone https://github.com/yasm/yasm.git
-          cd yasm/tools/genperf
-          mkdir "$env:USERPROFILE\genperf-bin"
-          cl /nologo /W0 /O2 /Fe"$env:USERPROFILE\genperf-bin\genperf.exe" genperf.c
-          echo "$env:USERPROFILE\genperf-bin" | Out-File -Append $env:GITHUB_PATH
+          cd yasm\tools\genperf
+          mkdir %USERPROFILE%\genperf-bin
+          call "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Auxiliary\Build\vcvars64.bat"
+          cl /nologo /W0 /O2 /Febin\genperf.exe genperf.c
+          copy bin\genperf.exe %USERPROFILE%\genperf-bin\
+          echo %USERPROFILE%\genperf-bin>> %GITHUB_PATH%
 
       - name: Initialize vcpkg
         run: ./bootstrap-vcpkg.bat
