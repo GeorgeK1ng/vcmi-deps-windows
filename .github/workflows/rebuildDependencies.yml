@@ -45,23 +45,10 @@ jobs:
           echo 'set(VCPKG_CXX_FLAGS "-D_WIN32_WINNT=0x0601 -DWINVER=0x0601")' >>triplets/${{ matrix.triplet }}.cmake
           echo 'set(VCPKG_C_FLAGS   "-D_WIN32_WINNT=0x0601 -DWINVER=0x0601")' >>triplets/${{ matrix.triplet }}.cmake
 
-      # ✅ Install re2c for yasm
-      - name: Install re2c (only for arm64)
+      - name: Install re2c and yasm (only for arm64)
         if: matrix.triplet == 'arm64-windows'
-        run: choco install re2c -y
-
-      # ✅ Build genperf manually from yasm source
-      - name: Build genperf manually (only for arm64)
-        if: matrix.triplet == 'arm64-windows'
-        shell: cmd
         run: |
-          git clone https://github.com/yasm/yasm.git
-          cd yasm\tools\genperf
-          mkdir %USERPROFILE%\genperf-bin
-          call "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Auxiliary\Build\vcvars64.bat"
-          cl /nologo /W0 /O2 /Febin\genperf.exe genperf.c
-          copy bin\genperf.exe %USERPROFILE%\genperf-bin\
-          echo %USERPROFILE%\genperf-bin>> %GITHUB_PATH%
+          choco install re2c yasm -y
 
       - name: Initialize vcpkg
         run: ./bootstrap-vcpkg.bat
