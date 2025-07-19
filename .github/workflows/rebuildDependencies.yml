@@ -26,7 +26,7 @@ jobs:
             commit: ec12d917a85839741f8345905f71b3e7f56d9ddc
           - platform: msvc-arm64
             triplet: arm64-windows
-            runner: windows-11-arm
+            runner: windows-latest
             # commit before changes to yasm package which seems to break ARM builds https://github.com/microsoft/vcpkg/pull/45856
             commit: 94a9df6990e426ec3fff1a4ba20016da4aafea70
 
