@@ -2,10 +2,6 @@ name: VCMI - vcpkg XP dependencies
 
 on:
   workflow_dispatch:
-  push:
-    branches: [ master ]
-  schedule:
-    - cron: '0 3 * * 0'
 
 jobs:
   build-xp:
@@ -21,18 +17,23 @@ jobs:
             runner: windows-latest
 
     runs-on: ${{ matrix.runner }}
-    defaults:
-      run:
-        shell: bash
 
     steps:
-      # Install Visual Studio 2019 Build Tools with v141_xp and Windows XP support
+      # Install VS2019 Build Tools with v141_xp and Windows XP support
       - name: Install v141_xp toolset
+        shell: powershell
         run: |
           choco install visualstudio2019buildtools --package-parameters "--quiet --add Microsoft.VisualStudio.Component.VC.v141.x86.x64 --add Microsoft.VisualStudio.Component.WindowsXP" -y
-          refreshenv
 
-      # Checkout vcpkg at XP-compatible baseline
+      # Configure MSVC environment to use v141_xp
+      - name: Setup MSVC v141_xp environment
+        shell: powershell
+        run: |
+          $vsPath = "C:\Program Files (x86)\Microsoft Visual Studio\2019\BuildTools\VC\Auxiliary\Build\vcvarsall.bat"
+          if (!(Test-Path $vsPath)) { throw "vcvarsall.bat not found at $vsPath" }
+          echo "##vso[task.setvariable variable=VSCMD_BAT]$vsPath"
+
+      # Checkout vcpkg
       - name: Checkout vcpkg
         uses: actions/checkout@v4
         with:
@@ -41,7 +42,9 @@ jobs:
 
       # Create XP triplets
       - name: Create XP triplets
+        shell: bash
         run: |
+          mkdir -p triplets
           cat <<EOF > triplets/x64-windows-xp.cmake
           set(VCPKG_TARGET_ARCHITECTURE x64)
           set(VCPKG_CRT_LINKAGE dynamic)
@@ -60,8 +63,9 @@ jobs:
           set(VCPKG_CXX_FLAGS "-D_WIN32_WINNT=0x0501 -DWINVER=0x0501")
           EOF
 
-      # Prepare Boost overlay (Boost 1.72 - last XP compatible)
+      # Prepare Boost overlay (Boost 1.72)
       - name: Prepare Boost overlay
+        shell: bash
         run: |
           mkdir -p vcmi-overlay
           git clone https://github.com/microsoft/vcpkg.git temp-vcpkg
@@ -71,8 +75,9 @@ jobs:
           cd ..
           rm -rf temp-vcpkg
 
-      # Prepare Qt5 overlay (Qt 5.6.3 - last XP compatible)
+      # Prepare Qt5 overlay (Qt 5.6.3)
       - name: Prepare Qt5 overlay
+        shell: bash
         run: |
           git clone https://github.com/microsoft/vcpkg.git temp-vcpkg-qt
           cd temp-vcpkg-qt
@@ -81,52 +86,52 @@ jobs:
           cd ..
           rm -rf temp-vcpkg-qt
 
-      # Cache to speed up subsequent builds
-      - name: Cache vcpkg XP
-        uses: actions/cache@v4
-        with:
-          path: |
-            ${{ github.workspace }}/installed
-            ${{ github.workspace }}/buildtrees
-            ${{ github.workspace }}/downloads
-          key: vcpkg-xp-${{ matrix.triplet }}
-
+      # Bootstrap vcpkg
       - name: Bootstrap vcpkg
-        run: ./bootstrap-vcpkg.bat
-
-      # Install XP dependencies
-      - name: Install XP dependencies
+        shell: cmd
         run: |
-          ./vcpkg.exe install yasm --triplet "${{ matrix.triplet }}" --overlay-ports=vcmi-overlay
-          ./vcpkg.exe install \
-            tbb fuzzylite sdl2 sdl2-image sdl2-ttf sdl2-mixer[core,mpg123] \
-            qt5-base qt5-tools \
-            ffmpeg[core,avcodec,avformat,swresample,swscale] \
-            boost-filesystem boost-system boost-thread boost-program-options boost-locale \
-            boost-iostreams boost-headers boost-foreach boost-format boost-crc boost-logic \
-            boost-multi-array boost-ptr-container boost-heap boost-bimap boost-asio \
-            boost-stacktrace boost-assign boost-geometry boost-uuid boost-process \
-            --triplet "${{ matrix.triplet }}" \
+          call "%VSCMD_BAT%" amd64
+          bootstrap-vcpkg.bat
+
+      # Install dependencies
+      - name: Install XP dependencies
+        shell: cmd
+        run: |
+          call "%VSCMD_BAT%" amd64
+          vcpkg.exe install yasm --triplet "${{ matrix.triplet }}" --overlay-ports=vcmi-overlay
+          vcpkg.exe install ^
+            tbb fuzzylite sdl2 sdl2-image sdl2-ttf sdl2-mixer[core,mpg123] ^
+            qt5-base qt5-tools ^
+            ffmpeg[core,avcodec,avformat,swresample,swscale] ^
+            boost-filesystem boost-system boost-thread boost-program-options boost-locale ^
+            boost-iostreams boost-headers boost-foreach boost-format boost-crc boost-logic ^
+            boost-multi-array boost-ptr-container boost-heap boost-bimap boost-asio ^
+            boost-stacktrace boost-assign boost-geometry boost-uuid boost-process ^
+            --triplet "${{ matrix.triplet }}" ^
             --overlay-ports=vcmi-overlay
 
       - name: Export XP packages
+        shell: cmd
         run: |
-          ./vcpkg.exe export \
-            tbb fuzzylite sdl2 sdl2-image sdl2-ttf sdl2-mixer qt5-base qt5-tools ffmpeg \
-            boost-filesystem boost-system boost-thread boost-program-options boost-locale \
-            boost-iostreams boost-headers boost-foreach boost-format boost-crc boost-logic \
-            boost-multi-array boost-ptr-container boost-heap boost-bimap boost-asio \
-            boost-stacktrace boost-assign boost-geometry boost-uuid boost-process \
-            --raw --triplet "${{ matrix.triplet }}" \
-            --overlay-ports=vcmi-overlay \
+          call "%VSCMD_BAT%" amd64
+          vcpkg.exe export ^
+            tbb fuzzylite sdl2 sdl2-image sdl2-ttf sdl2-mixer qt5-base qt5-tools ffmpeg ^
+            boost-filesystem boost-system boost-thread boost-program-options boost-locale ^
+            boost-iostreams boost-headers boost-foreach boost-format boost-crc boost-logic ^
+            boost-multi-array boost-ptr-container boost-heap boost-bimap boost-asio ^
+            boost-stacktrace boost-assign boost-geometry boost-uuid boost-process ^
+            --raw --triplet "${{ matrix.triplet }}" ^
+            --overlay-ports=vcmi-overlay ^
             --output=result/vcpkg
 
       - name: Create XP archive
+        shell: bash
         run: |
           tar --create --xz --file dependencies-${{ matrix.platform }}.txz -C result vcpkg
 
-      - name: Log built package versions
-        run: ./vcpkg.exe list
+      - name: Log built packages
+        shell: cmd
+        run: vcpkg.exe list
 
       - name: Upload XP artifact
         uses: actions/upload-artifact@v4
