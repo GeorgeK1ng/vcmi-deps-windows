@@ -1,41 +1,26 @@
-name: VCMI - vcpkg XP dependencies
+name: VCMI - vcpkg XP prepare
 
 on:
   workflow_dispatch:
 
 jobs:
-  build-xp:
+  prepare-xp:
+    runs-on: windows-latest
     strategy:
-      fail-fast: false
       matrix:
         include:
           - platform: msvc-x64-xp
             triplet: x64-windows-xp
-            runner: windows-latest
           - platform: msvc-x86-xp
             triplet: x86-windows-xp
-            runner: windows-latest
-
-    runs-on: ${{ matrix.runner }}
 
     steps:
-      # Install VS2019 Build Tools with v141_xp and Windows XP support
-      - name: Install v141_xp toolset
-        shell: powershell
-        run: |
-          choco install visualstudio2019buildtools --package-parameters "--quiet --add Microsoft.VisualStudio.Component.VC.v141.x86.x64 --add Microsoft.VisualStudio.Component.WindowsXP" -y
-          $vsPath = "C:\Program Files (x86)\Microsoft Visual Studio\2019\BuildTools\VC\Auxiliary\Build\vcvarsall.bat"
-          if (!(Test-Path $vsPath)) { throw "vcvarsall.bat not found at $vsPath" }
-          echo "VSCMD_BAT=$vsPath" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
-
-      # Checkout vcpkg baseline
-      - name: Checkout vcpkg
+      - name: Checkout vcpkg baseline
         uses: actions/checkout@v4
         with:
-          repository: 'microsoft/vcpkg'
+          repository: microsoft/vcpkg
           ref: 2021.05.12
 
-      # Create XP triplets
       - name: Create XP triplets
         shell: bash
         run: |
@@ -58,74 +43,104 @@ jobs:
           set(VCPKG_CXX_FLAGS "-D_WIN32_WINNT=0x0501 -DWINVER=0x0501")
           EOF
 
-      # Prepare Boost overlay (Boost 1.72)
-      - name: Prepare Boost overlay
+      - name: Prepare Boost overlay (Boost 1.72)
         shell: bash
         run: |
           mkdir -p vcmi-overlay
           git clone --depth 1 --branch 2020.01 https://github.com/microsoft/vcpkg.git temp-vcpkg
-          cp -r temp-vcpkg/ports/boost* vcmi-overlay/
-          cd ..
+          cp -r temp-vcpkg/ports/boost vcmi-overlay/
           rm -rf temp-vcpkg
 
-      # Prepare Qt5 overlay (Qt 5.6.3)
-      - name: Prepare Qt5 overlay
+      - name: Prepare Qt5 overlay (Qt 5.6.3)
         shell: bash
         run: |
           git clone --depth 1 --branch 2020.01 https://github.com/microsoft/vcpkg.git temp-vcpkg-qt
           cp -r temp-vcpkg-qt/ports/qt5* vcmi-overlay/
           rm -rf temp-vcpkg-qt
 
-      # Bootstrap vcpkg with XP toolset
-      - name: Bootstrap vcpkg
-        shell: cmd
-        run: |
-          call "%VSCMD_BAT%" amd64
-          bootstrap-vcpkg.bat
-
-      # Install dependencies
-      - name: Install XP dependencies
-        shell: cmd
-        run: |
-          call "%VSCMD_BAT%" amd64
-          vcpkg.exe install yasm --triplet "${{ matrix.triplet }}" --overlay-ports=vcmi-overlay
-          vcpkg.exe install ^
-            tbb fuzzylite sdl2 sdl2-image sdl2-ttf sdl2-mixer[core,mpg123] ^
-            qt5-base qt5-tools ^
-            ffmpeg[core,avcodec,avformat,swresample,swscale] ^
-            boost-filesystem boost-system boost-thread boost-program-options boost-locale ^
-            boost-iostreams boost-headers boost-foreach boost-format boost-crc boost-logic ^
-            boost-multi-array boost-ptr-container boost-heap boost-bimap boost-asio ^
-            boost-stacktrace boost-assign boost-geometry boost-uuid boost-process ^
-            --triplet "${{ matrix.triplet }}" ^
-            --overlay-ports=vcmi-overlay
-
-      - name: Export XP packages
-        shell: cmd
-        run: |
-          call "%VSCMD_BAT%" amd64
-          vcpkg.exe export ^
-            tbb fuzzylite sdl2 sdl2-image sdl2-ttf sdl2-mixer qt5-base qt5-tools ffmpeg ^
-            boost-filesystem boost-system boost-thread boost-program-options boost-locale ^
-            boost-iostreams boost-headers boost-foreach boost-format boost-crc boost-logic ^
-            boost-multi-array boost-ptr-container boost-heap boost-bimap boost-asio ^
-            boost-stacktrace boost-assign boost-geometry boost-uuid boost-process ^
-            --raw --triplet "${{ matrix.triplet }}" ^
-            --overlay-ports=vcmi-overlay ^
-            --output=result/vcpkg
-
-      - name: Create XP archive
+      - name: Save package list
         shell: bash
         run: |
-          tar --create --xz --file dependencies-${{ matrix.platform }}.txz -C result vcpkg
+          cat <<EOF > package-list.txt
+          yasm
+          tbb
+          fuzzylite
+          sdl2
+          sdl2-image
+          sdl2-ttf
+          sdl2-mixer[core,mpg123]
+          qt5-base
+          qt5-tools
+          ffmpeg[core,avcodec,avformat,swresample,swscale]
+          boost-filesystem
+          boost-system
+          boost-thread
+          boost-program-options
+          boost-locale
+          boost-iostreams
+          boost-headers
+          boost-foreach
+          boost-format
+          boost-crc
+          boost-logic
+          boost-multi-array
+          boost-ptr-container
+          boost-heap
+          boost-bimap
+          boost-asio
+          boost-stacktrace
+          boost-assign
+          boost-geometry
+          boost-uuid
+          boost-process
+          EOF
 
-      - name: Log built packages
-        shell: cmd
-        run: vcpkg.exe list
+      - name: Generate local build script
+        shell: bash
+        run: |
+          cat <<'BAT' > build-xp.cmd
+          @echo off
+          setlocal
+          echo.
+          echo === VCMI Windows XP Dependencies Build ===
+          echo.
 
-      - name: Upload XP artifact
+          REM Locate Visual Studio 2019 vcvarsall.bat
+          set VSPATH="C:\Program Files (x86)\Microsoft Visual Studio\2019\BuildTools\VC\Auxiliary\Build\vcvarsall.bat"
+          if not exist %VSPATH% (
+              echo ERROR: vcvarsall.bat not found at %VSPATH%
+              pause
+              exit /b 1
+          )
+
+          call %VSPATH% x64
+          echo Bootstrapping vcpkg...
+          call bootstrap-vcpkg.bat
+
+          echo Building x64 XP packages...
+          vcpkg.exe install @package-list.txt --triplet x64-windows-xp --overlay-ports=vcmi-overlay
+          vcpkg.exe export @package-list.txt --raw --triplet x64-windows-xp --overlay-ports=vcmi-overlay --output=result/x64
+
+          echo Building x86 XP packages...
+          vcpkg.exe install @package-list.txt --triplet x86-windows-xp --overlay-ports=vcmi-overlay
+          vcpkg.exe export @package-list.txt --raw --triplet x86-windows-xp --overlay-ports=vcmi-overlay --output=result/x86
+
+          echo.
+          echo === Build complete. Packages exported to result/ ===
+          pause
+          endlocal
+          BAT
+
+      - name: Package prepared vcpkg
+        shell: bash
+        run: |
+          mkdir -p result
+          tar --create --xz --file vcpkg-xp-${{ matrix.platform }}.txz \
+            triplets vcmi-overlay package-list.txt build-xp.cmd scripts ports bootstrap-vcpkg.bat vcpkg.exe
+
+      - name: Upload prepared vcpkg
         uses: actions/upload-artifact@v4
         with:
-          name: dependencies-${{ matrix.platform }}
-          path: ${{ github.workspace }}/dependencies-${{ matrix.platform }}.txz
+          name: vcpkg-xp-${{ matrix.platform }}
+          path: vcpkg-xp-${{ matrix.platform }}.txz
           compression-level: 0
