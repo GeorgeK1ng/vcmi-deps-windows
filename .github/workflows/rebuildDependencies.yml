@@ -14,6 +14,11 @@ jobs:
           repository: microsoft/vcpkg
           ref: 7aebb481085de7387f8a9975652c26f9053f66df  # 2021.05.12 commit
 
+      - name: Install Visual Studio 2019 Build Tools
+        shell: powershell
+        run: |
+          choco install visualstudio2019buildtools --package-parameters "--quiet --add Microsoft.VisualStudio.Component.VC.Tools.x86.x64 --add Microsoft.VisualStudio.Component.VC.v141.x86.x64" -y
+
       - name: Create XP triplets
         shell: bash
         run: |
@@ -88,6 +93,7 @@ jobs:
         shell: cmd
         run: |
           set VCPKG_ROOT=%CD%
+          call "C:\Program Files (x86)\Microsoft Visual Studio\2019\BuildTools\VC\Auxiliary\Build\vcvarsall.bat" x64
           call bootstrap-vcpkg.bat -disableMetrics
 
       - name: Generate local build script
