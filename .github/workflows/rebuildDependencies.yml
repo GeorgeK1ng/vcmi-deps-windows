@@ -26,14 +26,14 @@ jobs:
         shell: bash
 
     steps:
-      # Checkout vcpkg at last commit with XP-friendly ports (around 2021)
+      # Checkout vcpkg at last commit with XP-friendly ports
       - name: Checkout vcpkg (XP-compatible)
         uses: actions/checkout@v4
         with:
           repository: 'microsoft/vcpkg'
           ref: 2021.05.12
 
-      # Create XP triplets with v141_xp toolset and _WIN32_WINNT=0x0501
+      # Create XP triplets with v141_xp toolset and XP defines
       - name: Create XP triplets
         run: |
           cat <<EOF > triplets/x64-windows-xp.cmake
@@ -54,30 +54,28 @@ jobs:
           set(VCPKG_CXX_FLAGS "-D_WIN32_WINNT=0x0501 -DWINVER=0x0501")
           EOF
 
-      # Prepare Boost overlay for last XP-compatible Boost (1.72)
+      # Prepare Boost overlay (Boost 1.72 - last XP-compatible)
       - name: Prepare Boost overlay
         run: |
           mkdir -p vcmi-overlay
           git clone https://github.com/microsoft/vcpkg.git temp-vcpkg
           cd temp-vcpkg
-          git fetch origin 0f4a1f1c3e
-          git checkout 0f4a1f1c3e
+          git checkout 2020.01
           cp -r ports/boost* ../vcmi-overlay/
           cd ..
           rm -rf temp-vcpkg
 
-      # Prepare Qt5 overlay for last XP-compatible Qt (5.6.3)
+      # Prepare Qt5 overlay (Qt 5.6.3 - last XP-compatible)
       - name: Prepare Qt5 overlay
         run: |
           git clone https://github.com/microsoft/vcpkg.git temp-vcpkg-qt
           cd temp-vcpkg-qt
-          git fetch origin 69b3f26a21
-          git checkout 69b3f26a21
+          git checkout 2020.01
           cp -r ports/qt5* ../vcmi-overlay/
           cd ..
           rm -rf temp-vcpkg-qt
 
-      # Cache build artifacts to speed up future builds
+      # Cache vcpkg build artifacts
       - name: Cache vcpkg XP
         uses: actions/cache@v4
         with:
@@ -90,7 +88,7 @@ jobs:
       - name: Initialize vcpkg
         run: ./bootstrap-vcpkg.bat
 
-      # Install XP-compatible dependencies using overlay ports for Boost and Qt5
+      # Install XP-compatible dependencies using overlays
       - name: Install XP dependencies
         run: |
           ./vcpkg.exe install yasm --triplet "${{ matrix.triplet }}" --overlay-ports=vcmi-overlay
