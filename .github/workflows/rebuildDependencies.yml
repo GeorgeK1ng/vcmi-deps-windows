@@ -5,7 +5,7 @@ on:
   push:
     branches: [ master ]
   schedule:
-    - cron: '0 3 * * 0' # every Sunday 03:00
+    - cron: '0 3 * * 0'
 
 jobs:
   build-xp:
@@ -26,14 +26,20 @@ jobs:
         shell: bash
 
     steps:
-      # Checkout vcpkg at last commit with XP-friendly ports
-      - name: Checkout vcpkg (XP-compatible)
+      # Install Visual Studio 2019 Build Tools with v141_xp and Windows XP support
+      - name: Install v141_xp toolset
+        run: |
+          choco install visualstudio2019buildtools --package-parameters "--quiet --add Microsoft.VisualStudio.Component.VC.v141.x86.x64 --add Microsoft.VisualStudio.Component.WindowsXP" -y
+          refreshenv
+
+      # Checkout vcpkg at XP-compatible baseline
+      - name: Checkout vcpkg
         uses: actions/checkout@v4
         with:
           repository: 'microsoft/vcpkg'
           ref: 2021.05.12
 
-      # Create XP triplets with v141_xp toolset and XP defines
+      # Create XP triplets
       - name: Create XP triplets
         run: |
           cat <<EOF > triplets/x64-windows-xp.cmake
@@ -54,7 +60,7 @@ jobs:
           set(VCPKG_CXX_FLAGS "-D_WIN32_WINNT=0x0501 -DWINVER=0x0501")
           EOF
 
-      # Prepare Boost overlay (Boost 1.72 - last XP-compatible)
+      # Prepare Boost overlay (Boost 1.72 - last XP compatible)
       - name: Prepare Boost overlay
         run: |
           mkdir -p vcmi-overlay
@@ -65,7 +71,7 @@ jobs:
           cd ..
           rm -rf temp-vcpkg
 
-      # Prepare Qt5 overlay (Qt 5.6.3 - last XP-compatible)
+      # Prepare Qt5 overlay (Qt 5.6.3 - last XP compatible)
       - name: Prepare Qt5 overlay
         run: |
           git clone https://github.com/microsoft/vcpkg.git temp-vcpkg-qt
@@ -75,7 +81,7 @@ jobs:
           cd ..
           rm -rf temp-vcpkg-qt
 
-      # Cache vcpkg build artifacts
+      # Cache to speed up subsequent builds
       - name: Cache vcpkg XP
         uses: actions/cache@v4
         with:
@@ -85,10 +91,10 @@ jobs:
             ${{ github.workspace }}/downloads
           key: vcpkg-xp-${{ matrix.triplet }}
 
-      - name: Initialize vcpkg
+      - name: Bootstrap vcpkg
         run: ./bootstrap-vcpkg.bat
 
-      # Install XP-compatible dependencies using overlays
+      # Install XP dependencies
       - name: Install XP dependencies
         run: |
           ./vcpkg.exe install yasm --triplet "${{ matrix.triplet }}" --overlay-ports=vcmi-overlay
@@ -118,6 +124,9 @@ jobs:
       - name: Create XP archive
         run: |
           tar --create --xz --file dependencies-${{ matrix.platform }}.txz -C result vcpkg
+
+      - name: Log built package versions
+        run: ./vcpkg.exe list
 
       - name: Upload XP artifact
         uses: actions/upload-artifact@v4
