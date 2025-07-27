@@ -142,7 +142,7 @@ jobs:
         run: |
           mkdir -p result
           tar --create --xz --file vcpkg-xp-${{ matrix.platform }}.txz \
-            triplets vcmi-overlay package-list.txt build-xp.cmd scripts ports bootstrap-vcpkg.bat vcpkg.exe
+            triplets vcmi-overlay package-list.txt build-xp.cmd scripts ports bootstrap-vcpkg.bat toolsrc
 
       - name: Upload prepared vcpkg
         uses: actions/upload-artifact@v4
