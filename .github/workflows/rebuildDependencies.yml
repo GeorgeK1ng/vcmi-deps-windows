@@ -12,7 +12,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: microsoft/vcpkg
-          ref: 7aebb481085de7387f8a9975652c26f9053f66df  # 2021.05.12 commit
+          ref: 7aebb481085de7387f8a9975652c26f9053f66df  # 2021.05.12 commit (Boost 1.72)
 
       - name: Install Visual Studio 2019 Build Tools
         shell: powershell
@@ -41,17 +41,6 @@ jobs:
           set(VCPKG_CXX_FLAGS "-D_WIN32_WINNT=0x0501 -DWINVER=0x0501")
           EOF
 
-      - name: Prepare Boost overlay (Boost 1.72)
-        shell: bash
-        run: |
-          mkdir -p vcmi-overlay
-          git clone https://github.com/microsoft/vcpkg.git temp-vcpkg
-          cd temp-vcpkg
-          git checkout 7aebb481085de7387f8a9975652c26f9053f66df
-          cp -r ports/boost* ../vcmi-overlay/
-          cd ..
-          rm -rf temp-vcpkg
-
       - name: Save package list
         shell: bash
         run: |
@@ -65,7 +54,7 @@ jobs:
           sdl2-mixer[core,mpg123]
           qt5-base
           qt5-tools
-          ffmpeg[core,avcodec,avformat,swresample,swscale]
+          ffmpeg
           boost-filesystem
           boost-system
           boost-thread
@@ -128,12 +117,12 @@ jobs:
           call %VSPATH% x64
 
           echo Building x64 XP packages...
-          "%VCPKG%" install @package-list.txt --triplet x64-windows-xp --overlay-ports=vcmi-overlay
-          "%VCPKG%" export @package-list.txt --raw --triplet x64-windows-xp --overlay-ports=vcmi-overlay --output=result/x64
+          "%VCPKG%" install @package-list.txt --triplet x64-windows-xp
+          "%VCPKG%" export @package-list.txt --raw --triplet x64-windows-xp --output=result/x64
 
           echo Building x86 XP packages...
-          "%VCPKG%" install @package-list.txt --triplet x86-windows-xp --overlay-ports=vcmi-overlay
-          "%VCPKG%" export @package-list.txt --raw --triplet x86-windows-xp --overlay-ports=vcmi-overlay --output=result/x86
+          "%VCPKG%" install @package-list.txt --triplet x86-windows-xp
+          "%VCPKG%" export @package-list.txt --raw --triplet x86-windows-xp --output=result/x86
 
           echo.
           echo === Build complete. Packages exported to result/ ===
@@ -145,7 +134,7 @@ jobs:
         shell: bash
         run: |
           tar --create --xz --file vcpkg-xp.txz \
-            triplets vcmi-overlay package-list.txt build-xp.cmd scripts ports bootstrap-vcpkg.bat toolsrc vcpkg.exe
+            triplets package-list.txt build-xp.cmd scripts ports bootstrap-vcpkg.bat toolsrc vcpkg.exe
 
       - name: Upload prepared vcpkg
         uses: actions/upload-artifact@v4
