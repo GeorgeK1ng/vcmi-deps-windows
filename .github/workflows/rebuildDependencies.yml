@@ -6,20 +6,13 @@ on:
 jobs:
   prepare-xp:
     runs-on: windows-latest
-    strategy:
-      matrix:
-        include:
-          - platform: msvc-x64-xp
-            triplet: x64-windows-xp
-          - platform: msvc-x86-xp
-            triplet: x86-windows-xp
 
     steps:
       - name: Checkout vcpkg baseline
         uses: actions/checkout@v4
         with:
           repository: microsoft/vcpkg
-          ref: 2021.05.12
+          ref: 7aebb481085de7387f8a9975652c26f9053f66df  # 2021.05.12 commit
 
       - name: Create XP triplets
         shell: bash
@@ -50,19 +43,9 @@ jobs:
           git clone https://github.com/microsoft/vcpkg.git temp-vcpkg
           cd temp-vcpkg
           git checkout 7aebb481085de7387f8a9975652c26f9053f66df
-          cp -r ports/boost vcmi-overlay/
+          cp -r ports/boost* ../vcmi-overlay/
           cd ..
           rm -rf temp-vcpkg
-      
-      - name: Prepare Qt5 overlay (Qt 5.6.3)
-        shell: bash
-        run: |
-          git clone https://github.com/microsoft/vcpkg.git temp-vcpkg-qt
-          cd temp-vcpkg-qt
-          git checkout 7aebb481085de7387f8a9975652c26f9053f66df
-          cp -r ports/qt5* ../vcmi-overlay/
-          cd ..
-          rm -rf temp-vcpkg-qt
 
       - name: Save package list
         shell: bash
@@ -101,18 +84,35 @@ jobs:
           boost-process
           EOF
 
+      - name: Build vcpkg.exe for correct commit
+        shell: cmd
+        run: |
+          set VCPKG_ROOT=%CD%
+          call bootstrap-vcpkg.bat -disableMetrics
+
       - name: Generate local build script
         shell: bash
         run: |
           cat <<'BAT' > build-xp.cmd
           @echo off
           setlocal
+          set SCRIPT_DIR=%~dp0
+          cd /d %SCRIPT_DIR%
+          set VCPKG_ROOT=%SCRIPT_DIR%
+
           echo.
           echo === VCMI Windows XP Dependencies Build ===
           echo.
 
-          REM Locate Visual Studio 2019 vcvarsall.bat
-          set VSPATH="C:\Program Files (x86)\Microsoft Visual Studio\2019\BuildTools\VC\Auxiliary\Build\vcvarsall.bat"
+          set VCPKG=%SCRIPT_DIR%vcpkg.exe
+
+          if not exist "%VCPKG%" (
+              echo ERROR: vcpkg.exe is missing. This package is broken.
+              pause
+              exit /b 1
+          )
+
+          set VSPATH="C:\Program Files (x86)\Microsoft Visual Studio\2019\Community\VC\Auxiliary\Build\vcvarsall.bat"
           if not exist %VSPATH% (
               echo ERROR: vcvarsall.bat not found at %VSPATH%
               pause
@@ -120,16 +120,14 @@ jobs:
           )
 
           call %VSPATH% x64
-          echo Bootstrapping vcpkg...
-          call bootstrap-vcpkg.bat
 
           echo Building x64 XP packages...
-          vcpkg.exe install @package-list.txt --triplet x64-windows-xp --overlay-ports=vcmi-overlay
-          vcpkg.exe export @package-list.txt --raw --triplet x64-windows-xp --overlay-ports=vcmi-overlay --output=result/x64
+          "%VCPKG%" install @package-list.txt --triplet x64-windows-xp --overlay-ports=vcmi-overlay
+          "%VCPKG%" export @package-list.txt --raw --triplet x64-windows-xp --overlay-ports=vcmi-overlay --output=result/x64
 
           echo Building x86 XP packages...
-          vcpkg.exe install @package-list.txt --triplet x86-windows-xp --overlay-ports=vcmi-overlay
-          vcpkg.exe export @package-list.txt --raw --triplet x86-windows-xp --overlay-ports=vcmi-overlay --output=result/x86
+          "%VCPKG%" install @package-list.txt --triplet x86-windows-xp --overlay-ports=vcmi-overlay
+          "%VCPKG%" export @package-list.txt --raw --triplet x86-windows-xp --overlay-ports=vcmi-overlay --output=result/x86
 
           echo.
           echo === Build complete. Packages exported to result/ ===
@@ -140,13 +138,12 @@ jobs:
       - name: Package prepared vcpkg
         shell: bash
         run: |
-          mkdir -p result
-          tar --create --xz --file vcpkg-xp-${{ matrix.platform }}.txz \
-            triplets vcmi-overlay package-list.txt build-xp.cmd scripts ports bootstrap-vcpkg.bat toolsrc
+          tar --create --xz --file vcpkg-xp.txz \
+            triplets vcmi-overlay package-list.txt build-xp.cmd scripts ports bootstrap-vcpkg.bat toolsrc vcpkg.exe
 
       - name: Upload prepared vcpkg
         uses: actions/upload-artifact@v4
         with:
-          name: vcpkg-xp-${{ matrix.platform }}
-          path: vcpkg-xp-${{ matrix.platform }}.txz
+          name: vcpkg-xp
+          path: vcpkg-xp.txz
           compression-level: 0
