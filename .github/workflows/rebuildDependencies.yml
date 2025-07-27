@@ -47,15 +47,21 @@ jobs:
         shell: bash
         run: |
           mkdir -p vcmi-overlay
-          git clone --depth 1 --branch 2020.01 https://github.com/microsoft/vcpkg.git temp-vcpkg
-          cp -r temp-vcpkg/ports/boost vcmi-overlay/
+          git clone https://github.com/microsoft/vcpkg.git temp-vcpkg
+          cd temp-vcpkg
+          git checkout 7aebb481085de7387f8a9975652c26f9053f66df
+          cp -r ports/boost vcmi-overlay/
+          cd ..
           rm -rf temp-vcpkg
-
+      
       - name: Prepare Qt5 overlay (Qt 5.6.3)
         shell: bash
         run: |
-          git clone --depth 1 --branch 2020.01 https://github.com/microsoft/vcpkg.git temp-vcpkg-qt
-          cp -r temp-vcpkg-qt/ports/qt5* vcmi-overlay/
+          git clone https://github.com/microsoft/vcpkg.git temp-vcpkg-qt
+          cd temp-vcpkg-qt
+          git checkout 7aebb481085de7387f8a9975652c26f9053f66df
+          cp -r ports/qt5* ../vcmi-overlay/
+          cd ..
           rm -rf temp-vcpkg-qt
 
       - name: Save package list
