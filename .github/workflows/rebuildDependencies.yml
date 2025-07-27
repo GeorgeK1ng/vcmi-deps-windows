@@ -1,34 +1,24 @@
-name: VCMI - vcpkg dependencies
+name: VCMI - vcpkg XP dependencies
 
 on:
+  workflow_dispatch:
   push:
     branches: [ master ]
-  pull_request:
   schedule:
-    - cron: '0 2 * * 0' # every Sunday 02:00
-  workflow_dispatch:
+    - cron: '0 3 * * 0' # every Sunday 03:00
 
 jobs:
-  build:
+  build-xp:
     strategy:
       fail-fast: false
       matrix:
         include:
-          - platform: msvc-x64
-            triplet: x64-windows
+          - platform: msvc-x64-xp
+            triplet: x64-windows-xp
             runner: windows-latest
-            # commit before addition of boost filesystem 1.87 that removes Win7 support https://github.com/microsoft/vcpkg/pull/42678
-            commit: ec12d917a85839741f8345905f71b3e7f56d9ddc 
-          - platform: msvc-x86
-            triplet: x86-windows
+          - platform: msvc-x86-xp
+            triplet: x86-windows-xp
             runner: windows-latest
-            # commit before addition of boost filesystem 1.87 that removes Win7 support https://github.com/microsoft/vcpkg/pull/42678
-            commit: ec12d917a85839741f8345905f71b3e7f56d9ddc
-          - platform: msvc-arm64
-            triplet: arm64-windows
-            runner: windows-11-arm
-            # commit before changes to yasm package which seems to break ARM builds https://github.com/microsoft/vcpkg/pull/45856
-            commit: 94a9df6990e426ec3fff1a4ba20016da4aafea70
 
     runs-on: ${{ matrix.runner }}
     defaults:
@@ -36,32 +26,74 @@ jobs:
         shell: bash
 
     steps:
-      - name: Checkout vcpkg repository
+      # Checkout vcpkg at last commit with XP-friendly ports (around 2021)
+      - name: Checkout vcpkg (XP-compatible)
         uses: actions/checkout@v4
         with:
           repository: 'microsoft/vcpkg'
-          ref: ${{ matrix.commit }}
+          ref: 2021.05.12
 
-      # NOTE: disabling debug for all triplets, so 64 host / 32 guest won't build debug version of 64-bit tools
-      # Othervice, x86 package size is way larger than needed
-      - name: Disable debug builds
+      # Create XP triplets with v141_xp toolset and _WIN32_WINNT=0x0501
+      - name: Create XP triplets
         run: |
-          echo 'set(VCPKG_BUILD_TYPE release)' >>triplets/x64-windows.cmake
-          echo 'set(VCPKG_BUILD_TYPE release)' >>triplets/x86-windows.cmake
-          echo 'set(VCPKG_BUILD_TYPE release)' >>triplets/arm64-windows.cmake
+          cat <<EOF > triplets/x64-windows-xp.cmake
+          set(VCPKG_TARGET_ARCHITECTURE x64)
+          set(VCPKG_CRT_LINKAGE dynamic)
+          set(VCPKG_LIBRARY_LINKAGE dynamic)
+          set(VCPKG_PLATFORM_TOOLSET v141_xp)
+          set(VCPKG_C_FLAGS "-D_WIN32_WINNT=0x0501 -DWINVER=0x0501")
+          set(VCPKG_CXX_FLAGS "-D_WIN32_WINNT=0x0501 -DWINVER=0x0501")
+          EOF
 
-      - name: Enable Windows 7 targeting (only for x86/x64)
-        if: matrix.triplet == 'x64-windows' || matrix.triplet == 'x86-windows'
+          cat <<EOF > triplets/x86-windows-xp.cmake
+          set(VCPKG_TARGET_ARCHITECTURE x86)
+          set(VCPKG_CRT_LINKAGE dynamic)
+          set(VCPKG_LIBRARY_LINKAGE dynamic)
+          set(VCPKG_PLATFORM_TOOLSET v141_xp)
+          set(VCPKG_C_FLAGS "-D_WIN32_WINNT=0x0501 -DWINVER=0x0501")
+          set(VCPKG_CXX_FLAGS "-D_WIN32_WINNT=0x0501 -DWINVER=0x0501")
+          EOF
+
+      # Prepare Boost overlay for last XP-compatible Boost (1.72)
+      - name: Prepare Boost overlay
         run: |
-          echo 'set(VCPKG_CXX_FLAGS "-D_WIN32_WINNT=0x0601 -DWINVER=0x0601")' >>triplets/${{ matrix.triplet }}.cmake
-          echo 'set(VCPKG_C_FLAGS   "-D_WIN32_WINNT=0x0601 -DWINVER=0x0601")' >>triplets/${{ matrix.triplet }}.cmake
+          mkdir -p vcmi-overlay
+          git clone https://github.com/microsoft/vcpkg.git temp-vcpkg
+          cd temp-vcpkg
+          git fetch origin 0f4a1f1c3e
+          git checkout 0f4a1f1c3e
+          cp -r ports/boost* ../vcmi-overlay/
+          cd ..
+          rm -rf temp-vcpkg
+
+      # Prepare Qt5 overlay for last XP-compatible Qt (5.6.3)
+      - name: Prepare Qt5 overlay
+        run: |
+          git clone https://github.com/microsoft/vcpkg.git temp-vcpkg-qt
+          cd temp-vcpkg-qt
+          git fetch origin 69b3f26a21
+          git checkout 69b3f26a21
+          cp -r ports/qt5* ../vcmi-overlay/
+          cd ..
+          rm -rf temp-vcpkg-qt
+
+      # Cache build artifacts to speed up future builds
+      - name: Cache vcpkg XP
+        uses: actions/cache@v4
+        with:
+          path: |
+            ${{ github.workspace }}/installed
+            ${{ github.workspace }}/buildtrees
+            ${{ github.workspace }}/downloads
+          key: vcpkg-xp-${{ matrix.triplet }}
 
       - name: Initialize vcpkg
         run: ./bootstrap-vcpkg.bat
 
-      - name: Install dependencies
+      # Install XP-compatible dependencies using overlay ports for Boost and Qt5
+      - name: Install XP dependencies
         run: |
-          ./vcpkg.exe install yasm --triplet "${{ matrix.triplet }}"
+          ./vcpkg.exe install yasm --triplet "${{ matrix.triplet }}" --overlay-ports=vcmi-overlay
           ./vcpkg.exe install \
             tbb fuzzylite sdl2 sdl2-image sdl2-ttf sdl2-mixer[core,mpg123] \
             qt5-base qt5-tools \
@@ -70,9 +102,10 @@ jobs:
             boost-iostreams boost-headers boost-foreach boost-format boost-crc boost-logic \
             boost-multi-array boost-ptr-container boost-heap boost-bimap boost-asio \
             boost-stacktrace boost-assign boost-geometry boost-uuid boost-process \
-            --triplet "${{ matrix.triplet }}"
+            --triplet "${{ matrix.triplet }}" \
+            --overlay-ports=vcmi-overlay
 
-      - name: Export packages
+      - name: Export XP packages
         run: |
           ./vcpkg.exe export \
             tbb fuzzylite sdl2 sdl2-image sdl2-ttf sdl2-mixer qt5-base qt5-tools ffmpeg \
@@ -80,20 +113,15 @@ jobs:
             boost-iostreams boost-headers boost-foreach boost-format boost-crc boost-logic \
             boost-multi-array boost-ptr-container boost-heap boost-bimap boost-asio \
             boost-stacktrace boost-assign boost-geometry boost-uuid boost-process \
-            --raw --triplet "${{ matrix.triplet }}" --output=result/vcpkg
+            --raw --triplet "${{ matrix.triplet }}" \
+            --overlay-ports=vcmi-overlay \
+            --output=result/vcpkg
 
-      - name: Trim pdb files
-        run: |
-          find result/vcpkg/installed/*/tools -type f -name "*.pdb" -delete
-
-      - name: Create archive
+      - name: Create XP archive
         run: |
           tar --create --xz --file dependencies-${{ matrix.platform }}.txz -C result vcpkg
 
-      - name: Log resulting packages
-        run: ./vcpkg.exe list
-
-      - name: Upload artifact
+      - name: Upload XP artifact
         uses: actions/upload-artifact@v4
         with:
           name: dependencies-${{ matrix.platform }}
