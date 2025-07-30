@@ -24,7 +24,6 @@ jobs:
             triplet: arm64-windows
             runner: windows-11-arm
 
-
     runs-on: ${{ matrix.runner }}
     defaults:
       run:
