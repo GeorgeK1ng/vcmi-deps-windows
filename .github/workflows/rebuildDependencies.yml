@@ -41,29 +41,27 @@ jobs:
         run: |
           mkdir -p vcmi-overlay-boost vcmi-overlay-yasm
 
-          # Boost overlay (Win7 fix)
-          # Commit before addition of boost filesystem 1.87 that removes Win7 support https://github.com/microsoft/vcpkg/pull/42678
-          # commit: ec12d917a85839741f8345905f71b3e7f56d9ddc
+          # Clone vcpkg once
+          git clone https://github.com/microsoft/vcpkg.git temp-vcpkg
+          cd temp-vcpkg
 
-          git clone --depth=1 https://github.com/microsoft/vcpkg.git temp-vcpkg-boost
-          cd temp-vcpkg-boost
-          git fetch origin ec12d917a85839741f8345905f71b3e7f56d9ddc
+          # Boost overlay (Win7 fix)
+          # Commit before addition of boost filesystem 1.87 that removes Win7 support:
+          # https://github.com/microsoft/vcpkg/pull/42678
+          # Commit: ec12d917a85839741f8345905f71b3e7f56d9ddc
           git checkout ec12d917a85839741f8345905f71b3e7f56d9ddc
           cp -r ports/boost* ../vcmi-overlay-boost/
-          cd ..
-          rm -rf temp-vcpkg-boost
 
           # YASM overlay (ARM64 fix)
-          # commit before changes to yasm package which seems to break ARM builds https://github.com/microsoft/vcpkg/pull/45856
-          # commit: 94a9df6990e426ec3fff1a4ba20016da4aafea70
-
-          git clone --depth=1 https://github.com/microsoft/vcpkg.git temp-vcpkg-yasm
-          cd temp-vcpkg-yasm
-          git fetch origin 94a9df6990e426ec3fff1a4ba20016da4aafea70
+          # Commit before changes to yasm package which seem to break ARM builds:
+          # https://github.com/microsoft/vcpkg/pull/45856
+          # Commit: 94a9df6990e426ec3fff1a4ba20016da4aafea70
           git checkout 94a9df6990e426ec3fff1a4ba20016da4aafea70
           cp -r ports/yasm* ../vcmi-overlay-yasm/
+
+          # Switch back to master for the rest of the ports
+          git checkout master
           cd ..
-          rm -rf temp-vcpkg-yasm
 
       # NOTE: disabling debug for all triplets, so 64 host / 32 guest won't build debug version of 64-bit tools
       # Otherwise, x86 package size is way larger than needed
