@@ -54,9 +54,9 @@ jobs:
           rm -rf temp-vcpkg-boost
 
           # YASM overlay (ARM64 fix)
-	  # commit before changes to yasm package which seems to break ARM builds https://github.com/microsoft/vcpkg/pull/45856
+          # commit before changes to yasm package which seems to break ARM builds https://github.com/microsoft/vcpkg/pull/45856
           # commit: 94a9df6990e426ec3fff1a4ba20016da4aafea70
-	  
+
           git clone --depth=1 https://github.com/microsoft/vcpkg.git temp-vcpkg-yasm
           cd temp-vcpkg-yasm
           git fetch origin 94a9df6990e426ec3fff1a4ba20016da4aafea70
@@ -66,7 +66,7 @@ jobs:
           rm -rf temp-vcpkg-yasm
 
       # NOTE: disabling debug for all triplets, so 64 host / 32 guest won't build debug version of 64-bit tools
-      # Othervice, x86 package size is way larger than needed
+      # Otherwise, x86 package size is way larger than needed
       - name: Disable debug builds
         run: |
           echo 'set(VCPKG_BUILD_TYPE release)' >>triplets/x64-windows.cmake
