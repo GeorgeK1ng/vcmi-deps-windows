@@ -17,12 +17,15 @@ jobs:
           - platform: msvc-x64
             triplet: x64-windows
             runner: windows-latest
+            overlay: vcmi-overlay-boost
           - platform: msvc-x86
             triplet: x86-windows
             runner: windows-latest
+            overlay: vcmi-overlay-boost
           - platform: msvc-arm64
             triplet: arm64-windows
             runner: windows-11-arm
+            overlay: vcmi-overlay-yasm
 
     runs-on: ${{ matrix.runner }}
     defaults:
@@ -77,14 +80,8 @@ jobs:
 
       - name: Install dependencies
         run: |
-          if [ "${{ matrix.platform }}" == "msvc-arm64" ]; then
-            ./vcpkg.exe install yasm --triplet "${{ matrix.triplet }}" --overlay-ports=vcmi-overlay-yasm
-            OVERLAY="--overlay-ports=vcmi-overlay-yasm"
-          else
-            ./vcpkg.exe install yasm --triplet "${{ matrix.triplet }}" --overlay-ports=vcmi-overlay-boost
-            OVERLAY="--overlay-ports=vcmi-overlay-boost"
-          fi
-
+          ./vcpkg.exe install yasm --triplet "${{ matrix.triplet }}" --overlay-ports=${{ matrix.overlay }}
+      
           ./vcpkg.exe install \
             tbb fuzzylite sdl2 sdl2-image sdl2-ttf sdl2-mixer[core,mpg123] \
             qt5-base qt5-tools \
@@ -93,23 +90,19 @@ jobs:
             boost-iostreams boost-headers boost-foreach boost-format boost-crc boost-logic \
             boost-multi-array boost-ptr-container boost-heap boost-bimap boost-asio \
             boost-stacktrace boost-assign boost-geometry boost-uuid boost-process \
-            --triplet "${{ matrix.triplet }}" $OVERLAY
+            --triplet "${{ matrix.triplet }}" \
+            --overlay-ports=${{ matrix.overlay }}
 
       - name: Export packages
         run: |
-          if [ "${{ matrix.platform }}" == "msvc-arm64" ]; then
-            OVERLAY="--overlay-ports=vcmi-overlay-yasm"
-          else
-            OVERLAY="--overlay-ports=vcmi-overlay-boost"
-          fi
-
           ./vcpkg.exe export \
             tbb fuzzylite sdl2 sdl2-image sdl2-ttf sdl2-mixer qt5-base qt5-tools ffmpeg \
             boost-filesystem boost-system boost-thread boost-program-options boost-locale \
             boost-iostreams boost-headers boost-foreach boost-format boost-crc boost-logic \
             boost-multi-array boost-ptr-container boost-heap boost-bimap boost-asio \
             boost-stacktrace boost-assign boost-geometry boost-uuid boost-process \
-            --raw --triplet "${{ matrix.triplet }}" $OVERLAY \
+            --raw --triplet "${{ matrix.triplet }}" \
+            --overlay-ports=${{ matrix.overlay }} \
             --output=result/vcpkg
 
       - name: Trim pdb files
