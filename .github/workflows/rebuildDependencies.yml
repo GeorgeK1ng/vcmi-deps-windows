@@ -48,6 +48,7 @@ jobs:
           # Commit before addition of boost filesystem 1.87 that removes Win7 support:
           # https://github.com/microsoft/vcpkg/pull/42678
           # Commit: ec12d917a85839741f8345905f71b3e7f56d9ddc
+          git fetch origin ec12d917a85839741f8345905f71b3e7f56d9ddc
           git checkout ec12d917a85839741f8345905f71b3e7f56d9ddc
           cp -r ports/boost* ../vcmi-overlay-boost/
 
@@ -55,6 +56,7 @@ jobs:
           # Commit before changes to yasm package which seem to break ARM builds:
           # https://github.com/microsoft/vcpkg/pull/45856
           # Commit: 94a9df6990e426ec3fff1a4ba20016da4aafea70
+          git fetch origin 94a9df6990e426ec3fff1a4ba20016da4aafea70
           git checkout 94a9df6990e426ec3fff1a4ba20016da4aafea70
           cp -r ports/yasm* ../vcmi-overlay-yasm/
 
