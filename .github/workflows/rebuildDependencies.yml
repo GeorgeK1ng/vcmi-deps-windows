@@ -50,7 +50,7 @@ jobs:
           # Commit: ec12d917a85839741f8345905f71b3e7f56d9ddc
           git fetch origin ec12d917a85839741f8345905f71b3e7f56d9ddc
           git checkout ec12d917a85839741f8345905f71b3e7f56d9ddc
-          cp -r ports/boost* ../vcmi-overlay-boost/
+          cp -r ports/boost* vcmi-overlay-boost/
 
           # YASM overlay (ARM64 fix)
           # Commit before changes to yasm package which seem to break ARM builds:
@@ -58,7 +58,7 @@ jobs:
           # Commit: 94a9df6990e426ec3fff1a4ba20016da4aafea70
           git fetch origin 94a9df6990e426ec3fff1a4ba20016da4aafea70
           git checkout 94a9df6990e426ec3fff1a4ba20016da4aafea70
-          cp -r ports/yasm* ../vcmi-overlay-yasm/
+          cp -r ports/yasm* vcmi-overlay-yasm/
 
           # Switch back to master for the rest of the ports
           git checkout master
