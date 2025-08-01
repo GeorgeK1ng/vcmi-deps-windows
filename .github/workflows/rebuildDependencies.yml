@@ -17,18 +17,15 @@ jobs:
           - platform: msvc-x64
             triplet: x64-windows
             runner: windows-latest
-            # commit before addition of boost filesystem 1.87 that removes Win7 support https://github.com/microsoft/vcpkg/pull/42678
-            commit: ec12d917a85839741f8345905f71b3e7f56d9ddc 
+            overlay: vcmi-overlay-boost
           - platform: msvc-x86
             triplet: x86-windows
             runner: windows-latest
-            # commit before addition of boost filesystem 1.87 that removes Win7 support https://github.com/microsoft/vcpkg/pull/42678
-            commit: ec12d917a85839741f8345905f71b3e7f56d9ddc
+            overlay: vcmi-overlay-boost
           - platform: msvc-arm64
             triplet: arm64-windows
             runner: windows-11-arm
-            # commit before changes to yasm package which seems to break ARM builds https://github.com/microsoft/vcpkg/pull/45856
-            commit: 94a9df6990e426ec3fff1a4ba20016da4aafea70
+            overlay: vcmi-overlay-yasm
 
     runs-on: ${{ matrix.runner }}
     defaults:
@@ -36,21 +33,45 @@ jobs:
         shell: bash
 
     steps:
-      - name: Checkout vcpkg repository
+      # Use latest vcpkg for x64/x86
+      - name: Checkout vcpkg (latest)
         uses: actions/checkout@v4
         with:
           repository: 'microsoft/vcpkg'
-          ref: ${{ matrix.commit }}
+          ref: master
+
+      - name: Prepare overlays (Boost + YASM)
+        run: |
+          mkdir -p vcmi-overlay-boost vcmi-overlay-yasm
+
+          # Boost overlay (Win7 fix)
+          # Commit before addition of boost filesystem 1.87 that removes Win7 support:
+          # https://github.com/microsoft/vcpkg/pull/42678
+          # Commit: ec12d917a85839741f8345905f71b3e7f56d9ddc
+          git fetch origin ec12d917a85839741f8345905f71b3e7f56d9ddc
+          git checkout ec12d917a85839741f8345905f71b3e7f56d9ddc
+          cp -r ports/boost* vcmi-overlay-boost/
+
+          # YASM overlay (ARM64 fix)
+          # Commit before changes to yasm package which seem to break ARM builds:
+          # https://github.com/microsoft/vcpkg/pull/45856
+          # Commit: 94a9df6990e426ec3fff1a4ba20016da4aafea70
+          git fetch origin 94a9df6990e426ec3fff1a4ba20016da4aafea70
+          git checkout 94a9df6990e426ec3fff1a4ba20016da4aafea70
+          cp -r ports/yasm* vcmi-overlay-yasm/
+
+          # Switch back to master for the rest of the ports
+          git checkout master
 
       # NOTE: disabling debug for all triplets, so 64 host / 32 guest won't build debug version of 64-bit tools
-      # Othervice, x86 package size is way larger than needed
+      # Otherwise, x86 package size is way larger than needed
       - name: Disable debug builds
         run: |
           echo 'set(VCPKG_BUILD_TYPE release)' >>triplets/x64-windows.cmake
           echo 'set(VCPKG_BUILD_TYPE release)' >>triplets/x86-windows.cmake
           echo 'set(VCPKG_BUILD_TYPE release)' >>triplets/arm64-windows.cmake
 
-      - name: Enable Windows 7 targeting (only for x86/x64)
+      - name: Enable Windows 7 targeting (x86/x64)
         if: matrix.triplet == 'x64-windows' || matrix.triplet == 'x86-windows'
         run: |
           echo 'set(VCPKG_CXX_FLAGS "-D_WIN32_WINNT=0x0601 -DWINVER=0x0601")' >>triplets/${{ matrix.triplet }}.cmake
@@ -61,7 +82,8 @@ jobs:
 
       - name: Install dependencies
         run: |
-          ./vcpkg.exe install yasm --triplet "${{ matrix.triplet }}"
+          ./vcpkg.exe install yasm --triplet "${{ matrix.triplet }}" --overlay-ports=${{ matrix.overlay }}
+      
           ./vcpkg.exe install \
             tbb fuzzylite sdl2 sdl2-image sdl2-ttf sdl2-mixer[core,mpg123] \
             qt5-base qt5-tools \
@@ -70,7 +92,8 @@ jobs:
             boost-iostreams boost-headers boost-foreach boost-format boost-crc boost-logic \
             boost-multi-array boost-ptr-container boost-heap boost-bimap boost-asio \
             boost-stacktrace boost-assign boost-geometry boost-uuid boost-process \
-            --triplet "${{ matrix.triplet }}"
+            --triplet "${{ matrix.triplet }}" \
+            --overlay-ports=${{ matrix.overlay }}
 
       - name: Export packages
         run: |
@@ -80,7 +103,9 @@ jobs:
             boost-iostreams boost-headers boost-foreach boost-format boost-crc boost-logic \
             boost-multi-array boost-ptr-container boost-heap boost-bimap boost-asio \
             boost-stacktrace boost-assign boost-geometry boost-uuid boost-process \
-            --raw --triplet "${{ matrix.triplet }}" --output=result/vcpkg
+            --raw --triplet "${{ matrix.triplet }}" \
+            --overlay-ports=${{ matrix.overlay }} \
+            --output=result/vcpkg
 
       - name: Trim pdb files
         run: |
