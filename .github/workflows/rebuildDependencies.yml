@@ -1,11 +1,11 @@
-name: VCMI - vcpkg dependencies
+name: VCMI - vcpkg dependencies (Windows XP)
 
 on:
   push:
     branches: [ master ]
   pull_request:
   schedule:
-    - cron: '0 2 * * 0' # every Sunday 02:00
+    - cron: '0 2 * * 0'
   workflow_dispatch:
 
 jobs:
@@ -22,18 +22,6 @@ jobs:
             triplet: x86-windows
             runner: windows-latest
             overlay: vcmi-overlay-boost
-          - platform: msvc-arm64
-            triplet: arm64-windows
-            runner: windows-11-arm
-            overlay: vcmi-overlay-yasm
-          - platform: uwp-x64
-            triplet: x64-uwp
-            runner: windows-latest
-            # overlay: vcmi-overlay-boost
-          - platform: uwp-arm64
-            triplet: arm64-uwp
-            runner: windows-11-arm
-            # overlay: vcmi-overlay-boost
 
     runs-on: ${{ matrix.runner }}
     defaults:
@@ -41,8 +29,13 @@ jobs:
         shell: bash
 
     steps:
-      # Use latest vcpkg for x64/x86
-      - name: Checkout vcpkg (latest)
+      - name: Install MSVC v141_xp toolset
+        shell: powershell
+        run: |
+          choco install visualstudio2019buildtools --version=16.11.39 -y --package-parameters "--add Microsoft.VisualStudio.Component.VC.14.16.x86.x64 --includeRecommended --includeOptional"
+          echo "##vso[task.setvariable variable=VCToolsVersion]14.16"
+
+      - name: Checkout vcpkg
         uses: actions/checkout@v4
         with:
           repository: 'microsoft/vcpkg'
@@ -52,50 +45,36 @@ jobs:
         run: |
           mkdir -p vcmi-overlay-boost vcmi-overlay-yasm
 
-          # Boost overlay (Win7 fix)
-          # Commit before addition of boost filesystem 1.87 that removes Win7 support:
-          # https://github.com/microsoft/vcpkg/pull/42678
-          # Commit: ec12d917a85839741f8345905f71b3e7f56d9ddc
+          # Boost overlay (XP/Win7 compatible)
           git fetch origin ec12d917a85839741f8345905f71b3e7f56d9ddc
           git checkout ec12d917a85839741f8345905f71b3e7f56d9ddc
           cp -r ports/boost* vcmi-overlay-boost/
 
-          # YASM overlay (ARM64 fix)
-          # Commit before changes to yasm package which seem to break ARM builds:
-          # https://github.com/microsoft/vcpkg/pull/45856
-          # Commit: 94a9df6990e426ec3fff1a4ba20016da4aafea70
+          # YASM overlay (fix ARM build issues)
           git fetch origin 94a9df6990e426ec3fff1a4ba20016da4aafea70
           git checkout 94a9df6990e426ec3fff1a4ba20016da4aafea70
           cp -r ports/yasm* vcmi-overlay-yasm/
 
-          # Switch back to master for the rest of the ports
           git checkout master
 
-      # NOTE: disabling debug for all triplets, so 64 host / 32 guest won't build debug version of 64-bit tools
-      # Otherwise, x86 package size is way larger than needed
       - name: Disable debug builds
         run: |
           echo 'set(VCPKG_BUILD_TYPE release)' >>triplets/x64-windows.cmake
           echo 'set(VCPKG_BUILD_TYPE release)' >>triplets/x86-windows.cmake
-          echo 'set(VCPKG_BUILD_TYPE release)' >>triplets/arm64-windows.cmake
-          echo 'set(VCPKG_BUILD_TYPE release)' >>triplets/x64-uwp.cmake
-          echo 'set(VCPKG_BUILD_TYPE release)' >>triplets/arm64-uwp.cmake
 
-      - name: Enable Windows 7 targeting (x86/x64)
-        if: matrix.triplet == 'x64-windows' || matrix.triplet == 'x86-windows'
+      - name: Enable Windows XP targeting (x86/x64)
         run: |
-          echo 'set(VCPKG_CXX_FLAGS "-D_WIN32_WINNT=0x0601 -DWINVER=0x0601")' >>triplets/${{ matrix.triplet }}.cmake
-          echo 'set(VCPKG_C_FLAGS   "-D_WIN32_WINNT=0x0601 -DWINVER=0x0601")' >>triplets/${{ matrix.triplet }}.cmake
+          echo 'set(VCPKG_PLATFORM_TOOLSET v141_xp)' >>triplets/${{ matrix.triplet }}.cmake
+          echo 'set(VCPKG_CXX_FLAGS "-D_WIN32_WINNT=0x0501 -DWINVER=0x0501")' >>triplets/${{ matrix.triplet }}.cmake
+          echo 'set(VCPKG_C_FLAGS   "-D_WIN32_WINNT=0x0501 -DWINVER=0x0501")' >>triplets/${{ matrix.triplet }}.cmake
 
       - name: Initialize vcpkg
         run: ./bootstrap-vcpkg.bat
 
       - name: Install dependencies
         run: |
-          if [[ "${{ matrix.triplet }}" != "x64-uwp" && "${{ matrix.triplet }}" != "arm64-uwp" ]]; then
-            ./vcpkg.exe install yasm --triplet "${{ matrix.triplet }}" --overlay-ports=${{ matrix.overlay }}
-          fi
-          
+          ./vcpkg.exe install yasm --triplet "${{ matrix.triplet }}" --overlay-ports=${{ matrix.overlay }} --allow-unsupported
+
           ./vcpkg.exe install \
             tbb fuzzylite sdl2 sdl2-image sdl2-ttf sdl2-mixer[core,mpg123] \
             qt5-base qt5-tools \
@@ -105,7 +84,8 @@ jobs:
             boost-multi-array boost-ptr-container boost-heap boost-bimap boost-asio \
             boost-stacktrace boost-assign boost-geometry boost-uuid boost-process \
             --triplet "${{ matrix.triplet }}" \
-            --overlay-ports=${{ matrix.overlay }}  --allow-unsupported
+            --overlay-ports=${{ matrix.overlay }} \
+            --allow-unsupported
 
       - name: Export packages
         run: |
