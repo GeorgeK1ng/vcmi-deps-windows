@@ -92,8 +92,10 @@ jobs:
 
       - name: Install dependencies
         run: |
-          ./vcpkg.exe install yasm --triplet "${{ matrix.triplet }}" --overlay-ports=${{ matrix.overlay }}
-      
+          if [[ "${{ matrix.triplet }}" != "x64-uwp" && "${{ matrix.triplet }}" != "arm64-uwp" ]]; then
+            ./vcpkg.exe install yasm --triplet "${{ matrix.triplet }}" --overlay-ports=${{ matrix.overlay }}
+          fi
+          
           ./vcpkg.exe install \
             tbb fuzzylite sdl2 sdl2-image sdl2-ttf sdl2-mixer[core,mpg123] \
             qt5-base qt5-tools \
