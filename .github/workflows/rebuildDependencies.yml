@@ -29,17 +29,23 @@ jobs:
         shell: bash
 
     steps:
-      - name: Install MSVC v141_xp toolset
+      - name: Install VS2019 Build Tools with v141_xp
         shell: powershell
         run: |
           $ProgressPreference = 'SilentlyContinue'
           Invoke-WebRequest -Uri https://aka.ms/vs/16/release/vs_buildtools.exe -OutFile vs_buildtools.exe
       
-          Start-Process .\vs_buildtools.exe -ArgumentList `
-            '--quiet', '--wait', '--norestart', '--nocache', `
-            '--add', 'Microsoft.VisualStudio.Workload.VCTools', `
-            '--add', 'Microsoft.VisualStudio.Component.VC.14.16.x86.x64' -NoNewWindow -Wait
+          # Install VC++ workload + v141_xp toolset
+          Start-Process .\vs_buildtools.exe -ArgumentList @(
+            '--quiet', '--wait', '--norestart', '--nocache',
+            '--channelUri', 'https://aka.ms/vs/16/release/channel',
+            '--add', 'Microsoft.VisualStudio.Workload.VCTools',
+            '--add', 'Microsoft.VisualStudio.Component.VC.14.16.x86.x64',
+            '--add', 'Microsoft.VisualStudio.Component.VC.Tools.x86.x64',
+            '--includeRecommended', '--includeOptional'
+          ) -NoNewWindow -Wait
       
+          # Find installation
           $vs2019 = & "C:\Program Files (x86)\Microsoft Visual Studio\Installer\vswhere.exe" `
             -products * -version "[16.0,17.0)" -property installationPath
       
@@ -48,13 +54,11 @@ jobs:
       
           $vcvars = Join-Path $vs2019 "VC\Auxiliary\Build\vcvarsall.bat"
           if (-not (Test-Path $vcvars)) {
-              Get-ChildItem -Recurse $vs2019 | Where-Object { $_.Name -eq 'vcvarsall.bat' }
-              throw "vcvarsall.bat not found!"
+              throw "vcvarsall.bat not found after installation!"
           }
       
           echo "VCPKG_VISUAL_STUDIO_PATH=$vs2019" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
           echo "VCToolsVersion=14.16" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
-
 
       - name: Checkout vcpkg
         uses: actions/checkout@v4
