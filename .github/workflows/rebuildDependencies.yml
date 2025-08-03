@@ -105,7 +105,7 @@ jobs:
             boost-multi-array boost-ptr-container boost-heap boost-bimap boost-asio \
             boost-stacktrace boost-assign boost-geometry boost-uuid boost-process \
             --triplet "${{ matrix.triplet }}" \
-            --overlay-ports=${{ matrix.overlay }}
+            --overlay-ports=${{ matrix.overlay }}  --allow-unsupported
 
       - name: Export packages
         run: |
