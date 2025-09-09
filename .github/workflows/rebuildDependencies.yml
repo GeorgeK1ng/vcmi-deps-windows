@@ -42,7 +42,7 @@ jobs:
 
       - name: Prepare overlays (Boost + YASM)
         run: |
-          mkdir -p vcmi-overlay-boost vcmi-overlay-yasm
+          mkdir -p vcmi-overlay-boost vcmi-overlay-yasm vcmi-overlay-tbb
 
           # Boost overlay (Win7 fix)
           # Commit before addition of boost filesystem 1.87 that removes Win7 support:
