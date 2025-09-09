@@ -110,8 +110,11 @@ jobs:
       - name: Verify v141_xp presence
         shell: powershell
         run: |
-          & "$env:ProgramFiles(x86)\Microsoft Visual Studio\Installer\vswhere.exe" -products * -version 15 -requires Microsoft.VisualStudio.Component.VC.v141.x86.x64 -prerelease -format json
-
+          & "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe" `
+            -products * -version 15 `
+            -requires Microsoft.VisualStudio.Component.VC.v141.x86.x64 `
+            -prerelease -format json
+  
       - name: Pin VS2017 for vcpkg
         if: matrix.triplet == 'x86-windows' || matrix.triplet == 'x64-windows'
         shell: bash
