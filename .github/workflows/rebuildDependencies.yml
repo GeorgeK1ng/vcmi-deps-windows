@@ -29,15 +29,7 @@ jobs:
           ref: triplet-toolset
           path: vcpkg
 
-      # 2) Přidáme prebuilt vcpkg.exe (vyhneme se pádu při bootstrapu starého toolsrc)
-      - name: Put prebuilt vcpkg.exe into fork
-        shell: powershell
-        run: |
-          $tag = "2025-09-03"
-          $uri = "https://github.com/microsoft/vcpkg-tool/releases/download/$tag/vcpkg.exe"
-          Invoke-WebRequest $uri -OutFile "$env:GITHUB_WORKSPACE\vcpkg\vcpkg.exe"
-
-      # 3) Triplet úpravy – release only + XP makra + Ninja
+      # 2) Triplet úpravy – release only + XP makra + Ninja
       - name: Configure triplets (release + XP macros + Ninja)
         shell: bash
         working-directory: ./vcpkg
@@ -59,7 +51,7 @@ jobs:
             echo 'set(VCPKG_CMAKE_GENERATOR "Ninja")'
           } >> triplets/x86-windows.cmake
 
-      # 4) Nainstalujeme VS2017 Build Tools s WinXP podporou (MSVC 14.16 + 7.1A SDK)
+      # 3) VS2017 Build Tools s XP supportem (MSVC 14.16 + 7.1A SDK)
       - name: Install VS2017 Build Tools (v141_xp)
         shell: powershell
         run: |
@@ -69,10 +61,11 @@ jobs:
              --add Microsoft.VisualStudio.Component.WinXP `
              --includeRecommended --includeOptional --passive --locale en-US"
 
-      # 5) Build & export v JEDNOM kroku (vcvarsall + vcpkg), aby se přeneslo prostředí
+      # 4) Build & export v JEDNOM kroku (vcvarsall + bootstrap + vcpkg)
       - name: Build & export (${{ matrix.triplet }})
         shell: cmd
         run: |
+          rem ---- MSVC 14.16 + Win7.1A SDK do PATH/INCLUDE/LIB
           if "${{ matrix.triplet }}"=="x86-windows" (
             call "C:\Program Files (x86)\Microsoft Visual Studio\2017\BuildTools\VC\Auxiliary\Build\vcvarsall.bat" x86 -vcvars_ver=14.16
           ) else (
@@ -81,19 +74,22 @@ jobs:
 
           cd vcpkg
 
-          rem instalace bez overlayů
-          .\vcpkg.exe install yasm --triplet "${{ matrix.triplet }}"
+          rem ---- postavíme starý toolsrc s umlčením C4996 v cofffilereader.cpp
+          set CL=/D_SILENCE_FPOS_SEEKPOS_DEPRECATION_WARNING /wd4996
+          call .\bootstrap-vcpkg.bat
+
+          rem ---- instalace BEZ yasm (ve forku Mixaill/ports/yasm neexistuje)
           .\vcpkg.exe install tbb minizip --triplet "${{ matrix.triplet }}"
 
-          rem export do ./vcpkg/result/vcpkg
+          rem ---- export do ./vcpkg/result/vcpkg
           if not exist result mkdir result
           .\vcpkg.exe export tbb minizip --raw --triplet "${{ matrix.triplet }}" --output=result\vcpkg
 
-          rem zabalíme do ZIP (tar --xz není na runneru s xz podporou)
+          rem ---- zip archiv (Compress-Archive je dostupný všude)
           powershell -NoProfile -Command ^
             "Compress-Archive -Path 'result\\vcpkg' -DestinationPath \"$env:GITHUB_WORKSPACE\\dependencies-${{ matrix.platform }}.zip\" -Force"
 
-      # 6) Artefakt
+      # 5) Artefakt
       - name: Upload artifact (${{ matrix.platform }})
         uses: actions/upload-artifact@v4
         with:
