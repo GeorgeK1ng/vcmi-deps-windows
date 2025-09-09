@@ -125,6 +125,20 @@ jobs:
         run: |
           echo 'VCPKG_VISUAL_STUDIO_PATH=C:\Program Files (x86)\Microsoft Visual Studio\2017\BuildTools' >> $GITHUB_ENV
 
+      - name: Load VS env (x64)
+        if: matrix.triplet == 'x64-windows'
+        shell: cmd
+        run: |
+          call "C:\Program Files (x86)\Microsoft Visual Studio\2017\BuildTools\VC\Auxiliary\Build\vcvarsall.bat" amd64
+          where cl
+      
+      - name: Load VS env (x86)
+        if: matrix.triplet == 'x86-windows'
+        shell: cmd
+        run: |
+          call "C:\Program Files (x86)\Microsoft Visual Studio\2017\BuildTools\VC\Auxiliary\Build\vcvarsall.bat" x86
+          where cl
+
       - name: Initialize vcpkg
         run: ./bootstrap-vcpkg.bat
 
