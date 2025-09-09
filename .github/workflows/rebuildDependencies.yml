@@ -1,11 +1,11 @@
-name: VCMI - vcpkg dependencies (XP)
+name: VCMI - vcpkg dependencies (XP, Mixaill fork)
 
 on:
   push:
     branches: [ master ]
   pull_request:
   schedule:
-    - cron: '0 2 * * 0' # every Sunday 02:00
+    - cron: '0 2 * * 0'
   workflow_dispatch:
 
 jobs:
@@ -16,23 +16,12 @@ jobs:
         include:
           - platform: msvc-x64
             triplet: x64-windows
-            runner: windows-latest
-
           - platform: msvc-x86
             triplet: x86-windows
-            runner: windows-latest
-
-          #- platform: msvc-arm64
-          #  triplet: arm64-windows
-          #  runner: windows-11-arm
-          #  overlay: vcmi-overlay-yasm
-
-    runs-on: ${{ matrix.runner }}
-    defaults:
-      run:
-        shell: bash
+    runs-on: windows-latest
 
     steps:
+      # 1) VCPKG z forku
       - name: Checkout vcpkg fork (Mixaill/triplet-toolset)
         uses: actions/checkout@v4
         with:
@@ -40,118 +29,62 @@ jobs:
           ref: triplet-toolset
           path: vcpkg
 
-      # NOTE: disabling debug for all triplets, so 64 host / 32 guest won't build debug version of 64-bit tools
-      # Otherwise, x86 package size is way larger than needed
-      - name: Disable debug builds
+      # 2) Triplet úpravy – POZOR: pracujeme v ./vcpkg
+      - name: Configure triplets (release + XP macros + Ninja)
+        shell: bash
+        working-directory: ./vcpkg
         run: |
-          echo 'set(VCPKG_BUILD_TYPE release)' >>triplets/x64-windows.cmake
-          echo 'set(VCPKG_BUILD_TYPE release)' >>triplets/x86-windows.cmake
-          echo 'set(VCPKG_BUILD_TYPE release)' >>triplets/arm64-windows.cmake
+          echo 'set(VCPKG_BUILD_TYPE release)' >> triplets/x64-windows.cmake
+          echo 'set(VCPKG_BUILD_TYPE release)' >> triplets/x86-windows.cmake
 
-      - name: Enable Windows XP targeting (x86)
-        if: matrix.triplet == 'x86-windows'
-        run: |
-          echo 'set(VCPKG_CXX_FLAGS "-D_WIN32_WINNT=0x0501 -DWINVER=0x0501")' >>triplets/${{ matrix.triplet }}.cmake
-          echo 'set(VCPKG_C_FLAGS   "-D_WIN32_WINNT=0x0501 -DWINVER=0x0501")' >>triplets/${{ matrix.triplet }}.cmake
+          # x64 = 0x0502 (Server 2003)
+          {
+            echo 'set(VCPKG_C_FLAGS   "-D_WIN32_WINNT=0x0502 -DWINVER=0x0502")'
+            echo 'set(VCPKG_CXX_FLAGS "-D_WIN32_WINNT=0x0502 -DWINVER=0x0502")'
+            echo 'set(VCPKG_CMAKE_GENERATOR "Ninja")'
+          } >> triplets/x64-windows.cmake
 
-      - name: Enable Windows XP targeting (x64)
-        if: matrix.triplet == 'x64-windows'
-        run: |
-          echo 'set(VCPKG_CXX_FLAGS "-D_WIN32_WINNT=0x0502 -DWINVER=0x0502")' >>triplets/${{ matrix.triplet }}.cmake
-          echo 'set(VCPKG_C_FLAGS   "-D_WIN32_WINNT=0x0502 -DWINVER=0x0502")' >>triplets/${{ matrix.triplet }}.cmake
+          # x86 = 0x0501 (XP)
+          {
+            echo 'set(VCPKG_C_FLAGS   "-D_WIN32_WINNT=0x0501 -DWINVER=0x0501")'
+            echo 'set(VCPKG_CXX_FLAGS "-D_WIN32_WINNT=0x0501 -DWINVER=0x0501")'
+            echo 'set(VCPKG_CMAKE_GENERATOR "Ninja")'
+          } >> triplets/x86-windows.cmake
 
-      - name: Install VS2017 Build Tools (v141_xp) via Chocolatey
-        if: matrix.triplet == 'x86-windows' || matrix.triplet == 'x64-windows'
+      # 3) VS2017 Build Tools s XP supportem
+      - name: Install VS2017 Build Tools (v141_xp)
         shell: powershell
         run: |
-          choco install visualstudio2017buildtools --package-parameters `
+          choco install visualstudio2017buildtools -y --no-progress --package-parameters `
             "--add Microsoft.VisualStudio.Workload.VCTools `
              --add Microsoft.VisualStudio.Component.VC.v141.x86.x64 `
              --add Microsoft.VisualStudio.Component.WinXP `
-             --includeRecommended --includeOptional --passive --locale en-US" `
-            -y --no-progress
+             --includeRecommended --includeOptional --passive --locale en-US"
 
-      - name: Force VS2017 + v141_xp in triplet (x86/x64)
-        if: matrix.triplet == 'x86-windows' || matrix.triplet == 'x64-windows'
-        run: |
-          {
-            echo 'set(VCPKG_CMAKE_GENERATOR "Ninja")'
-          } >> triplets/${{ matrix.triplet }}.cmake
-
-      - name: Verify v141_xp presence
-        shell: powershell
-        run: |
-          & "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe" `
-            -products * -version 15 `
-            -requires Microsoft.VisualStudio.Component.VC.v141.x86.x64 `
-            -prerelease -format json
-            
-      - name: Verify v141_xp presence 2
-        shell: cmd
-        run: dir "%ProgramFiles(x86)%\Microsoft Visual Studio\2017\BuildTools\VC\Tools\MSVC\14.16.27023\bin\Hostx86\x86"
-  
-
-      - name: Verify v141_xp on VS2022
-        shell: powershell
-        run: |
-          & "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe" `
-            -products * -version 17 `
-            -requires Microsoft.VisualStudio.Component.VC.v141.x86.x64 `
-            -requires Microsoft.VisualStudio.Component.WinXP `
-            -format json
-
-      - name: Load MSVC 14.16 + 7.1A (x86)
-        if: matrix.triplet == 'x86-windows'
+      # 4) Build & export v JEDNOM kroku (vcvarsall + vcpkg), ať se přenese prostředí
+      - name: Build & export (${{ matrix.triplet }})
         shell: cmd
         run: |
-          call "C:\Program Files (x86)\Microsoft Visual Studio\2017\BuildTools\VC\Auxiliary\Build\vcvarsall.bat" x86 -vcvars_ver=14.16
-          set
-          where cl
-          where link
-      
-      - name: Load MSVC 14.16 + 7.1A (x64)
-        if: matrix.triplet == 'x64-windows'
-        shell: cmd
-        run: |
-          call "C:\Program Files (x86)\Microsoft Visual Studio\2017\BuildTools\VC\Auxiliary\Build\vcvarsall.bat" amd64 -vcvars_ver=14.16
-          set
-          where cl
-          where link
+          if "${{ matrix.triplet }}"=="x86-windows" (
+            call "C:\Program Files (x86)\Microsoft Visual Studio\2017\BuildTools\VC\Auxiliary\Build\vcvarsall.bat" x86 -vcvars_ver=14.16
+          ) else (
+            call "C:\Program Files (x86)\Microsoft Visual Studio\2017\BuildTools\VC\Auxiliary\Build\vcvarsall.bat" amd64 -vcvars_ver=14.16
+          )
 
-      - name: Initialize vcpkg
-        run: ./bootstrap-vcpkg.bat
+          cd vcpkg
+          call .\bootstrap-vcpkg.bat
 
-      - name: Install dependencies
-        run: |
-          ./vcpkg.exe install yasm --triplet "${{ matrix.triplet }}" --overlay-ports=${{ matrix.overlay }}
-      
-          ./vcpkg.exe install \
-            tbb minizip \
-            --triplet "${{ matrix.triplet }}" \
-            --overlay-ports=vcmi-overlay-tbb \
-            --overlay-ports=vcmi-overlay-boost
+          rem Install deps (BEZ overlay-ports)
+          .\vcpkg.exe install yasm --triplet "${{ matrix.triplet }}"
+          .\vcpkg.exe install tbb minizip --triplet "${{ matrix.triplet }}"
 
-      - name: Export packages
-        run: |
-          ./vcpkg.exe export \
-            tbb minizip \
-            --raw --triplet "${{ matrix.triplet }}" \
-            --overlay-ports=vcmi-overlay-tbb \
-            --overlay-ports=vcmi-overlay-boost \
-            --output=result/vcpkg
+          rem Export + archiv
+          mkdir result
+          .\vcpkg.exe export tbb minizip --raw --triplet "${{ matrix.triplet }}" --output=result\vcpkg
+          tar --create --xz --file "..\dependencies-${{ matrix.platform }}.txz" -C result vcpkg
 
-      - name: Trim pdb files
-        run: |
-          find result/vcpkg/installed/*/tools -type f -name "*.pdb" -delete
-
-      - name: Create archive
-        run: |
-          tar --create --xz --file dependencies-${{ matrix.platform }}.txz -C result vcpkg
-
-      - name: Log resulting packages
-        run: ./vcpkg.exe list
-
-      - name: Upload artifact
+      # 5) Artifact
+      - name: Upload artifact (${{ matrix.platform }})
         uses: actions/upload-artifact@v4
         with:
           name: dependencies-${{ matrix.platform }}
