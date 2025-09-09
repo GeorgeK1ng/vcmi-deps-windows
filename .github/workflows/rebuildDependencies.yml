@@ -61,8 +61,8 @@ jobs:
           cp -r ports/yasm* vcmi-overlay-yasm/
 
           # TBB overlay – 2022.1.0 PR #45086
-          git fetch origin 55a72d2
-          git checkout 55a72d2
+          git fetch origin ae88776c2ec0ac719c0460b1bedf0dd3b11b374c
+          git checkout ae88776c2ec0ac719c0460b1bedf0dd3b11b374c
           cp -r ports/tbb vcmi-overlay-tbb/
 
           # Switch back to master for the rest of the ports
