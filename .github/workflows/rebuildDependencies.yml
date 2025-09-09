@@ -86,7 +86,7 @@ jobs:
       
           ./vcpkg.exe install \
             tbb fuzzylite sdl2 sdl2-image sdl2-ttf sdl2-mixer[core,mpg123] \
-            qt5-base qt5-tools \
+            qt5-base qt5-tools minizip \
             ffmpeg[core,avcodec,avformat,swresample,swscale] \
             boost-filesystem boost-system boost-thread boost-program-options boost-locale \
             boost-iostreams boost-headers boost-foreach boost-format boost-crc boost-logic \
@@ -98,7 +98,7 @@ jobs:
       - name: Export packages
         run: |
           ./vcpkg.exe export \
-            tbb fuzzylite sdl2 sdl2-image sdl2-ttf sdl2-mixer qt5-base qt5-tools ffmpeg \
+            tbb fuzzylite sdl2 sdl2-image sdl2-ttf sdl2-mixer qt5-base qt5-tools minizip ffmpeg \
             boost-filesystem boost-system boost-thread boost-program-options boost-locale \
             boost-iostreams boost-headers boost-foreach boost-format boost-crc boost-logic \
             boost-multi-array boost-ptr-container boost-heap boost-bimap boost-asio \
