@@ -92,14 +92,16 @@ jobs:
           ./vcpkg.exe install \
             tbb \
             --triplet "${{ matrix.triplet }}" \
-            --overlay-ports=${{ matrix.overlay }}
+            --overlay-ports=vcmi-overlay-tbb \
+            --overlay-ports=vcmi-overlay-boost
 
       - name: Export packages
         run: |
           ./vcpkg.exe export \
             tbb \
             --raw --triplet "${{ matrix.triplet }}" \
-            --overlay-ports=${{ matrix.overlay }} \
+            --overlay-ports=vcmi-overlay-tbb \
+            --overlay-ports=vcmi-overlay-boost \
             --output=result/vcpkg
 
       - name: Trim pdb files
