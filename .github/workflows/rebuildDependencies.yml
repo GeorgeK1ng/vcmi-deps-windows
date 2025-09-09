@@ -96,6 +96,7 @@ jobs:
             "--add Microsoft.VisualStudio.Workload.VCTools `
              --add Microsoft.VisualStudio.Component.VC.v141.x86.x64 `
              --add Microsoft.VisualStudio.Component.WinXP `
+             --add Microsoft.VisualStudio.Component.Windows71SDK `
              --includeRecommended --includeOptional --passive --locale en-US" `
             -y --no-progress
 
@@ -103,6 +104,7 @@ jobs:
         if: matrix.triplet == 'x86-windows' || matrix.triplet == 'x64-windows'
         run: |
           {
+            echo 'set(VCPKG_CMAKE_GENERATOR "Visual Studio 15 2017")'
             echo 'set(VCPKG_PLATFORM_TOOLSET v141_xp)'
           } >> triplets/${{ matrix.triplet }}.cmake
 
