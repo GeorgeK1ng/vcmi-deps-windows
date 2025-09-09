@@ -96,7 +96,6 @@ jobs:
             "--add Microsoft.VisualStudio.Workload.VCTools `
              --add Microsoft.VisualStudio.Component.VC.v141.x86.x64 `
              --add Microsoft.VisualStudio.Component.WinXP `
-             --add Microsoft.VisualStudio.Component.Windows71SDK `
              --includeRecommended --includeOptional --passive --locale en-US" `
             -y --no-progress
 
