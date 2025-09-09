@@ -40,7 +40,7 @@ jobs:
           repository: 'microsoft/vcpkg'
           ref: master
 
-      - name: Prepare overlays (Boost + YASM)
+      - name: Prepare overlays (Boost + TBB + YASM)
         run: |
           mkdir -p vcmi-overlay-boost vcmi-overlay-yasm vcmi-overlay-tbb
 
@@ -90,7 +90,11 @@ jobs:
           ./vcpkg.exe install yasm --triplet "${{ matrix.triplet }}" --overlay-ports=${{ matrix.overlay }}
       
           ./vcpkg.exe install \
-            tbb \
+            tbb fuzzylite sdl2 sdl2-image sdl2-ttf sdl2-mixer qt5-base qt5-tools ffmpeg minizip \
+            boost-filesystem boost-system boost-thread boost-program-options boost-locale \
+            boost-iostreams boost-headers boost-foreach boost-format boost-crc boost-logic \
+            boost-multi-array boost-ptr-container boost-heap boost-bimap boost-asio \
+            boost-stacktrace boost-assign boost-geometry boost-uuid boost-process \
             --triplet "${{ matrix.triplet }}" \
             --overlay-ports=vcmi-overlay-tbb \
             --overlay-ports=vcmi-overlay-boost
@@ -98,7 +102,11 @@ jobs:
       - name: Export packages
         run: |
           ./vcpkg.exe export \
-            tbb \
+            tbb fuzzylite sdl2 sdl2-image sdl2-ttf sdl2-mixer qt5-base qt5-tools ffmpeg minizip \
+            boost-filesystem boost-system boost-thread boost-program-options boost-locale \
+            boost-iostreams boost-headers boost-foreach boost-format boost-crc boost-logic \
+            boost-multi-array boost-ptr-container boost-heap boost-bimap boost-asio \
+            boost-stacktrace boost-assign boost-geometry boost-uuid boost-process \
             --raw --triplet "${{ matrix.triplet }}" \
             --overlay-ports=vcmi-overlay-tbb \
             --overlay-ports=vcmi-overlay-boost \
