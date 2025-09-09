@@ -17,11 +17,11 @@ jobs:
           - platform: msvc-x64
             triplet: x64-windows
             runner: windows-latest
-            overlay: vcmi-overlay-boost;vcmi-overlay-tbb
+            overlay: vcmi-overlay-boost
           - platform: msvc-x86
             triplet: x86-windows
             runner: windows-latest
-            overlay: vcmi-overlay-boost;vcmi-overlay-tbb
+            overlay: vcmi-overlay-boost
           - platform: msvc-arm64
             triplet: arm64-windows
             runner: windows-11-arm
