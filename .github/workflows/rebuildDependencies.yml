@@ -48,8 +48,8 @@ jobs:
           # Commit before addition of boost filesystem 1.87 that removes Win7 support:
           # https://github.com/microsoft/vcpkg/pull/42678
           # Commit: ec12d917a85839741f8345905f71b3e7f56d9ddc
-          git fetch origin ec12d917a85839741f8345905f71b3e7f56d9ddc
-          git checkout ec12d917a85839741f8345905f71b3e7f56d9ddc
+          git fetch origin 2d847cfd21c285d0c77182456b82de69d2123325
+          git checkout 2d847cfd21c285d0c77182456b82de69d2123325
           cp -r ports/boost* vcmi-overlay-boost/
 
           # YASM overlay (ARM64 fix)
