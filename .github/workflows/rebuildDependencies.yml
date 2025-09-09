@@ -85,14 +85,14 @@ jobs:
           ./vcpkg.exe install yasm --triplet "${{ matrix.triplet }}" --overlay-ports=${{ matrix.overlay }}
       
           ./vcpkg.exe install \
-            minizip \
+            tbb \
             --triplet "${{ matrix.triplet }}" \
             --overlay-ports=${{ matrix.overlay }}
 
       - name: Export packages
         run: |
           ./vcpkg.exe export \
-            minizip \
+            tbb \
             --raw --triplet "${{ matrix.triplet }}" \
             --overlay-ports=${{ matrix.overlay }} \
             --output=result/vcpkg
