@@ -119,25 +119,19 @@ jobs:
         shell: cmd
         run: dir "%ProgramFiles(x86)%\Microsoft Visual Studio\2017\BuildTools\VC\Tools\MSVC\14.16.27023\bin\Hostx86\x86"
   
-      - name: Pin VS2017 for vcpkg
+      - name: Pin VS2022 for vcpkg
         if: matrix.triplet == 'x86-windows' || matrix.triplet == 'x64-windows'
-        shell: bash
         run: |
-          echo 'VCPKG_VISUAL_STUDIO_PATH=C:\Program Files (x86)\Microsoft Visual Studio\2017\BuildTools' >> $GITHUB_ENV
+          echo 'VCPKG_VISUAL_STUDIO_PATH=C:\Program Files\Microsoft Visual Studio\2022\BuildTools' >> $GITHUB_ENV
 
-      - name: Load VS env (x64)
-        if: matrix.triplet == 'x64-windows'
-        shell: cmd
+      - name: Verify v141_xp on VS2022
+        shell: powershell
         run: |
-          call "C:\Program Files (x86)\Microsoft Visual Studio\2017\BuildTools\VC\Auxiliary\Build\vcvarsall.bat" amd64
-          where cl
-      
-      - name: Load VS env (x86)
-        if: matrix.triplet == 'x86-windows'
-        shell: cmd
-        run: |
-          call "C:\Program Files (x86)\Microsoft Visual Studio\2017\BuildTools\VC\Auxiliary\Build\vcvarsall.bat" x86
-          where cl
+          & "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe" `
+            -products * -version 17 `
+            -requires Microsoft.VisualStudio.Component.VC.v141.x86.x64 `
+            -requires Microsoft.VisualStudio.Component.WinXP `
+            -format json
 
       - name: Initialize vcpkg
         run: ./bootstrap-vcpkg.bat
