@@ -119,10 +119,6 @@ jobs:
         shell: cmd
         run: dir "%ProgramFiles(x86)%\Microsoft Visual Studio\2017\BuildTools\VC\Tools\MSVC\14.16.27023\bin\Hostx86\x86"
   
-      - name: Pin VS2022 for vcpkg
-        if: matrix.triplet == 'x86-windows' || matrix.triplet == 'x64-windows'
-        run: |
-          echo 'VCPKG_VISUAL_STUDIO_PATH=C:\Program Files\Microsoft Visual Studio\2022\BuildTools' >> $GITHUB_ENV
 
       - name: Verify v141_xp on VS2022
         shell: powershell
