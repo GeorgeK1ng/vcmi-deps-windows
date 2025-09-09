@@ -40,29 +40,7 @@ jobs:
           repository: Mixaill/vcpkg
           ref: triplet-toolset
 
-      - name: Prepare overlays (Boost + TBB + YASM)
-        run: |
-          mkdir -p vcmi-overlay-boost vcmi-overlay-yasm vcmi-overlay-tbb
-          # Boost overlay (Win7 fix)
-          # Commit before addition of boost filesystem 1.87 that removes Win7 support:
-          # https://github.com/microsoft/vcpkg/pull/42678
-          # Commit: ec12d917a85839741f8345905f71b3e7f56d9ddc
-          git fetch origin ec12d917a85839741f8345905f71b3e7f56d9ddc
-          git checkout ec12d917a85839741f8345905f71b3e7f56d9ddc
-          cp -r ports/boost* vcmi-overlay-boost/
-          # YASM overlay (ARM64 fix)
-          # Commit before changes to yasm package which seem to break ARM builds:
-          # https://github.com/microsoft/vcpkg/pull/45856
-          # Commit: 94a9df6990e426ec3fff1a4ba20016da4aafea70
-          git fetch origin 94a9df6990e426ec3fff1a4ba20016da4aafea70
-          git checkout 94a9df6990e426ec3fff1a4ba20016da4aafea70
-          cp -r ports/yasm* vcmi-overlay-yasm/
-          # TBB overlay – Updates 2019.03.29
-          git fetch origin 5eafbf27cbcca094305c904d88bc8279f6489049
-          git checkout 5eafbf27cbcca094305c904d88bc8279f6489049
-          cp -r ports/tbb vcmi-overlay-tbb/
-          # Switch back to master for the rest of the ports
-          git checkout master
+
       # NOTE: disabling debug for all triplets, so 64 host / 32 guest won't build debug version of 64-bit tools
       # Otherwise, x86 package size is way larger than needed
       - name: Disable debug builds
