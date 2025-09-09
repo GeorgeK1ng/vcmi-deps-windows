@@ -17,11 +17,11 @@ jobs:
           - platform: msvc-x64
             triplet: x64-windows
             runner: windows-latest
-            overlay: vcmi-overlay-boost
+            overlay: vcmi-overlay-boost;vcmi-overlay-tbb
           - platform: msvc-x86
             triplet: x86-windows
             runner: windows-latest
-            overlay: vcmi-overlay-boost
+            overlay: vcmi-overlay-boost;vcmi-overlay-tbb
           - platform: msvc-arm64
             triplet: arm64-windows
             runner: windows-11-arm
@@ -48,8 +48,8 @@ jobs:
           # Commit before addition of boost filesystem 1.87 that removes Win7 support:
           # https://github.com/microsoft/vcpkg/pull/42678
           # Commit: ec12d917a85839741f8345905f71b3e7f56d9ddc
-          git fetch origin 2d847cfd21c285d0c77182456b82de69d2123325
-          git checkout 2d847cfd21c285d0c77182456b82de69d2123325
+          git fetch origin ec12d917a85839741f8345905f71b3e7f56d9ddc
+          git checkout ec12d917a85839741f8345905f71b3e7f56d9ddc
           cp -r ports/boost* vcmi-overlay-boost/
 
           # YASM overlay (ARM64 fix)
@@ -59,6 +59,11 @@ jobs:
           git fetch origin 94a9df6990e426ec3fff1a4ba20016da4aafea70
           git checkout 94a9df6990e426ec3fff1a4ba20016da4aafea70
           cp -r ports/yasm* vcmi-overlay-yasm/
+
+          # TBB overlay – 2022.1.0 PR #45086
+          git fetch origin 55a72d2
+          git checkout 55a72d2
+          cp -r ports/tbb vcmi-overlay-tbb/
 
           # Switch back to master for the rest of the ports
           git checkout master
