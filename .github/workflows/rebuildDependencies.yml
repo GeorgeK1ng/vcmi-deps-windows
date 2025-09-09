@@ -36,12 +36,13 @@ jobs:
       - name: Checkout vcpkg (2018 snapshot)
         shell: bash
         run: |
-          git init vcpkg && cd vcpkg
+          git init vcpkg
+          cd vcpkg
           git remote add origin https://github.com/microsoft/vcpkg.git
+          git fetch origin master --tags --prune
           COMMIT=$(git rev-list -n 1 --before="2018-12-15 23:59" origin/master)
-          git fetch --depth=1 origin ${COMMIT}
-          git checkout ${COMMIT}
-          echo "Using vcpkg commit ${COMMIT}"
+          git checkout $COMMIT
+          echo "Using vcpkg commit $COMMIT"
 
       # NOTE: disabling debug for all triplets, so 64 host / 32 guest won't build debug version of 64-bit tools
       # Otherwise, x86 package size is way larger than needed
