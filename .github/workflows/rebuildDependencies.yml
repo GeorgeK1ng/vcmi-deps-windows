@@ -21,7 +21,7 @@ jobs:
     runs-on: windows-latest
 
     steps:
-      # 1) VCPKG z forku
+      # 1) VCPKG z forku do ./vcpkg
       - name: Checkout vcpkg fork (Mixaill/triplet-toolset)
         uses: actions/checkout@v4
         with:
@@ -29,7 +29,15 @@ jobs:
           ref: triplet-toolset
           path: vcpkg
 
-      # 2) Triplet úpravy – POZOR: pracujeme v ./vcpkg
+      # 2) Přidáme prebuilt vcpkg.exe (vyhneme se pádu při bootstrapu starého toolsrc)
+      - name: Put prebuilt vcpkg.exe into fork
+        shell: powershell
+        run: |
+          $tag = "2025-09-03"
+          $uri = "https://github.com/microsoft/vcpkg-tool/releases/download/$tag/vcpkg.exe"
+          Invoke-WebRequest $uri -OutFile "$env:GITHUB_WORKSPACE\vcpkg\vcpkg.exe"
+
+      # 3) Triplet úpravy – release only + XP makra + Ninja
       - name: Configure triplets (release + XP macros + Ninja)
         shell: bash
         working-directory: ./vcpkg
@@ -37,21 +45,21 @@ jobs:
           echo 'set(VCPKG_BUILD_TYPE release)' >> triplets/x64-windows.cmake
           echo 'set(VCPKG_BUILD_TYPE release)' >> triplets/x86-windows.cmake
 
-          # x64 = 0x0502 (Server 2003)
+          # x64 = Windows Server 2003 (0x0502)
           {
             echo 'set(VCPKG_C_FLAGS   "-D_WIN32_WINNT=0x0502 -DWINVER=0x0502")'
             echo 'set(VCPKG_CXX_FLAGS "-D_WIN32_WINNT=0x0502 -DWINVER=0x0502")'
             echo 'set(VCPKG_CMAKE_GENERATOR "Ninja")'
           } >> triplets/x64-windows.cmake
 
-          # x86 = 0x0501 (XP)
+          # x86 = Windows XP (0x0501)
           {
             echo 'set(VCPKG_C_FLAGS   "-D_WIN32_WINNT=0x0501 -DWINVER=0x0501")'
             echo 'set(VCPKG_CXX_FLAGS "-D_WIN32_WINNT=0x0501 -DWINVER=0x0501")'
             echo 'set(VCPKG_CMAKE_GENERATOR "Ninja")'
           } >> triplets/x86-windows.cmake
 
-      # 3) VS2017 Build Tools s XP supportem
+      # 4) Nainstalujeme VS2017 Build Tools s WinXP podporou (MSVC 14.16 + 7.1A SDK)
       - name: Install VS2017 Build Tools (v141_xp)
         shell: powershell
         run: |
@@ -61,7 +69,7 @@ jobs:
              --add Microsoft.VisualStudio.Component.WinXP `
              --includeRecommended --includeOptional --passive --locale en-US"
 
-      # 4) Build & export v JEDNOM kroku (vcvarsall + vcpkg), ať se přenese prostředí
+      # 5) Build & export v JEDNOM kroku (vcvarsall + vcpkg), aby se přeneslo prostředí
       - name: Build & export (${{ matrix.triplet }})
         shell: cmd
         run: |
@@ -72,21 +80,23 @@ jobs:
           )
 
           cd vcpkg
-          call .\bootstrap-vcpkg.bat
 
-          rem Install deps (BEZ overlay-ports)
+          rem instalace bez overlayů
           .\vcpkg.exe install yasm --triplet "${{ matrix.triplet }}"
           .\vcpkg.exe install tbb minizip --triplet "${{ matrix.triplet }}"
 
-          rem Export + archiv
-          mkdir result
+          rem export do ./vcpkg/result/vcpkg
+          if not exist result mkdir result
           .\vcpkg.exe export tbb minizip --raw --triplet "${{ matrix.triplet }}" --output=result\vcpkg
-          tar --create --xz --file "..\dependencies-${{ matrix.platform }}.txz" -C result vcpkg
 
-      # 5) Artifact
+          rem zabalíme do ZIP (tar --xz není na runneru s xz podporou)
+          powershell -NoProfile -Command ^
+            "Compress-Archive -Path 'result\\vcpkg' -DestinationPath \"$env:GITHUB_WORKSPACE\\dependencies-${{ matrix.platform }}.zip\" -Force"
+
+      # 6) Artefakt
       - name: Upload artifact (${{ matrix.platform }})
         uses: actions/upload-artifact@v4
         with:
           name: dependencies-${{ matrix.platform }}
-          path: ${{ github.workspace }}/dependencies-${{ matrix.platform }}.txz
+          path: ${{ github.workspace }}/dependencies-${{ matrix.platform }}.zip
           compression-level: 0
