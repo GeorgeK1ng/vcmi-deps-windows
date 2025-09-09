@@ -22,10 +22,10 @@ jobs:
             triplet: x86-windows
             runner: windows-latest
 
-          - platform: msvc-arm64
-            triplet: arm64-windows
-            runner: windows-11-arm
-            overlay: vcmi-overlay-yasm
+          #- platform: msvc-arm64
+          #  triplet: arm64-windows
+          #  runner: windows-11-arm
+          #  overlay: vcmi-overlay-yasm
 
     runs-on: ${{ matrix.runner }}
     defaults:
@@ -114,6 +114,10 @@ jobs:
             -products * -version 15 `
             -requires Microsoft.VisualStudio.Component.VC.v141.x86.x64 `
             -prerelease -format json
+            
+      - name: Verify v141_xp presence 2
+        shell: cmd
+        run: dir "%ProgramFiles(x86)%\Microsoft Visual Studio\2017\BuildTools\VC\Tools\MSVC\14.16.27023\bin\Hostx86\x86"
   
       - name: Pin VS2017 for vcpkg
         if: matrix.triplet == 'x86-windows' || matrix.triplet == 'x64-windows'
