@@ -100,7 +100,7 @@ jobs:
           echo 'set(VCPKG_C_FLAGS "/D_WIN32_WINNT=0x0601 /DWINVER=0x0601 /DNTDDI_VERSION=0x06010000")' >>triplets/${{ matrix.triplet }}.cmake
           echo 'set(VCPKG_CXX_FLAGS "/D_WIN32_WINNT=0x0601 /DWINVER=0x0601 /DNTDDI_VERSION=0x06010000")' >>triplets/${{ matrix.triplet }}.cmake
           echo 'set(VCPKG_C_FLAGS_RELEASE "${VCPKG_C_FLAGS} ${VCPKG_C_FLAGS_RELEASE}")' >>triplets/${{ matrix.triplet }}.cmake
-          # echo 'set(VCPKG_CXX_FLAGS_RELEASE "${VCPKG_CXX_FLAGS} ${VCPKG_CXX_FLAGS_RELEASE}")' >>triplets/${{ matrix.triplet }}.cmake
+          echo 'set(VCPKG_CXX_FLAGS_RELEASE "${VCPKG_CXX_FLAGS} ${VCPKG_CXX_FLAGS_RELEASE}")' >>triplets/${{ matrix.triplet }}.cmake
           
           # set(VCPKG_CRT_LINKAGE static)
           # echo 'set(VCPKG_LINKER_FLAGS "/SUBSYSTEM:WINDOWS,6.01")' >>triplets/${{ matrix.triplet }}.cmake
