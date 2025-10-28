@@ -114,7 +114,7 @@ jobs:
             boost-filesystem boost-system boost-thread boost-program-options boost-locale \
             boost-iostreams boost-headers boost-foreach boost-format boost-crc boost-logic \
             boost-multi-array boost-ptr-container boost-heap boost-bimap boost-asio \
-            boost-stacktrace boost-assign boost-geometry boost-uuid boost-process minizip-ng \
+            boost-stacktrace boost-assign boost-geometry boost-uuid boost-process minizip \
             --triplet "${{ matrix.triplet }}" \
             ${{ matrix.overlays }}
 
@@ -125,7 +125,7 @@ jobs:
             boost-filesystem boost-system boost-thread boost-program-options boost-locale \
             boost-iostreams boost-headers boost-foreach boost-format boost-crc boost-logic \
             boost-multi-array boost-ptr-container boost-heap boost-bimap boost-asio \
-            boost-stacktrace boost-assign boost-geometry boost-uuid boost-process minizip-ng \
+            boost-stacktrace boost-assign boost-geometry boost-uuid boost-process minizip \
             --raw --triplet "${{ matrix.triplet }}" \
             ${{ matrix.overlays }} \
             --output=result/vcpkg
