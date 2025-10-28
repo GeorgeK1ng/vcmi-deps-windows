@@ -82,6 +82,8 @@ jobs:
           cp -r ports/tbb* vcmi-overlay-tbb/
           git checkout master
 
+      # NOTE: disabling debug for all triplets, so 64 host / 32 guest won't build debug version of 64-bit tools
+      # Otherwise, x86 package size is way larger than needed
       - name: Disable debug builds
         run: |
           echo 'set(VCPKG_BUILD_TYPE release)' >>triplets/x64-windows.cmake
