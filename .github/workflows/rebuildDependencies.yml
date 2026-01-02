@@ -91,8 +91,8 @@ jobs:
           # --- ONNX overlay (pin to 1.16.2) ---
           # Commit that updates onnx port to 1.16.2:
           # 88a0bf8 [onnx] Update onnx to 1.16.2 and fix downstream (#40067)
-          git fetch origin 88a0bf8
-          git checkout 88a0bf8
+          git fetch --depth 1 origin 88a0bf87b5efd6270502dfe4dde75dd155bd992b
+          git checkout --detach FETCH_HEAD
           cp -r ports/onnx vcmi-overlay-onnx/
           git checkout master
 
