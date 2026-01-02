@@ -18,13 +18,13 @@ jobs:
             triplet: x64-windows
             runner: windows-latest
             toolset: v142
-            overlays: "--overlay-ports=vcmi-overlay-boost --overlay-ports=vcmi-overlay-tbb"
+            overlays: "--overlay-ports=vcmi-overlay-boost --overlay-ports=vcmi-overlay-tbb --overlay-ports=vcmi-overlay-onnx --overlay-ports=vcmi-overlay-onnxruntime"
 
           - platform: msvc-x86
             triplet: x86-windows
             runner: windows-latest
             toolset: v142
-            overlays: "--overlay-ports=vcmi-overlay-boost --overlay-ports=vcmi-overlay-tbb"
+            overlays: "--overlay-ports=vcmi-overlay-boost --overlay-ports=vcmi-overlay-tbb --overlay-ports=vcmi-overlay-onnx --overlay-ports=vcmi-overlay-onnxruntime"
 
           - platform: msvc-arm64
             triplet: arm64-windows
@@ -82,6 +82,199 @@ jobs:
           cp -r ports/tbb* vcmi-overlay-tbb/
           git checkout master
 
+      - name: Prepare overlays (ONNX 1.16.2 + ONNXRuntime 1.18.1 + Win7 patch)
+        if: matrix.triplet == 'x64-windows' || matrix.triplet == 'x86-windows'
+        run: |
+          set -euo pipefail
+          mkdir -p vcmi-overlay-onnx vcmi-overlay-onnxruntime
+
+          # --- ONNX overlay (pin to 1.16.2) ---
+          # Commit that updates onnx port to 1.16.2:
+          # 88a0bf8 [onnx] Update onnx to 1.16.2 and fix downstream (#40067)
+          git fetch origin 88a0bf8
+          git checkout 88a0bf8
+          cp -r ports/onnx vcmi-overlay-onnx/
+          git checkout master
+
+          # --- ONNXRuntime overlay (use upstream v1.18.1 vcpkg port) ---
+          rm -rf _ort_repo
+          git clone --depth 1 --branch v1.18.1 https://github.com/microsoft/onnxruntime.git _ort_repo
+
+          # Copy upstream vcpkg port (onnxruntime provides its own vcpkg ports)
+          # https://onnxruntime.ai/docs/build/dependencies.html
+          cp -r _ort_repo/cmake/vcpkg-ports/onnxruntime vcmi-overlay-onnxruntime/
+
+          # Add Win7 compatibility patch (CreateFile2/GetSystemTimePreciseAsFileTime -> Win7-safe APIs)
+          cat > vcmi-overlay-onnxruntime/onnxruntime/win7.patch <<'PATCH'
+          --- a/onnxruntime/test/shared_lib/test_model_loading.cc
+          +++ b/onnxruntime/test/shared_lib/test_model_loading.cc
+          @@ -227,7 +227,7 @@ using ScopedFileDescriptor = ScopedResource<FileDescriptorTraits>;
+           
+           void FileMmap(const ORTCHAR_T* file_path, void*& mapped_base) {
+           #ifdef _WIN32
+          -  wil::unique_hfile file_handle{CreateFile2(file_path, GENERIC_READ, FILE_SHARE_READ, OPEN_EXISTING, NULL)};
+          +  wil::unique_hfile file_handle{CreateFileW(file_path, GENERIC_READ, FILE_SHARE_READ, nullptr, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr)};
+             ASSERT_TRUE(file_handle.get() != INVALID_HANDLE_VALUE);
+           
+             wil::unique_hfile file_mapping_handle{
+          --- a/onnxruntime/core/platform/windows/env.cc
+          +++ b/onnxruntime/core/platform/windows/env.cc
+          @@ -314,7 +314,7 @@ PIDType WindowsEnv::GetSelfPid() const {
+           
+           Status WindowsEnv::GetFileLength(_In_z_ const ORTCHAR_T* file_path, size_t& length) const {
+             wil::unique_hfile file_handle{
+          -      CreateFile2(file_path, FILE_READ_ATTRIBUTES, FILE_SHARE_READ, OPEN_EXISTING, NULL)};
+          +      CreateFileW(file_path, FILE_READ_ATTRIBUTES, FILE_SHARE_READ, nullptr, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr)};
+             if (file_handle.get() == INVALID_HANDLE_VALUE) {
+               const auto error_code = GetLastError();
+               return ORT_MAKE_STATUS(ONNXRUNTIME, FAIL, "open file ", ToUTF8String(Basename(file_path)), " fail, errcode = ", error_code, " - ", std::system_category().message(error_code));
+          @@ -361,7 +361,7 @@ Status WindowsEnv::ReadFileIntoBuffer(_In_z_ const ORTCHAR_T* const file_path, c
+             ORT_RETURN_IF_NOT(offset >= 0, "offset < 0");
+             ORT_RETURN_IF_NOT(length <= buffer.size(), "length > buffer.size()");
+             wil::unique_hfile file_handle{
+          -      CreateFile2(file_path, GENERIC_READ, FILE_SHARE_READ, OPEN_EXISTING, NULL)};
+          +      CreateFileW(file_path, GENERIC_READ, FILE_SHARE_READ, nullptr, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr)};
+             if (file_handle.get() == INVALID_HANDLE_VALUE) {
+               const auto error_code = GetLastError();
+               return ORT_MAKE_STATUS(ONNXRUNTIME, FAIL, "open file ", ToUTF8String(Basename(file_path)), " fail, errcode = ", error_code, " - ", std::system_category().message(error_code));
+          @@ -414,7 +414,7 @@ Status WindowsEnv::MapFileIntoMemory(_In_z_ const ORTCHAR_T* file_path,
+             }
+           
+             wil::unique_hfile file_handle{
+          -      CreateFile2(file_path, GENERIC_READ, FILE_SHARE_READ, OPEN_EXISTING, NULL)};
+          +      CreateFileW(file_path, GENERIC_READ, FILE_SHARE_READ, nullptr, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr)};
+             if (file_handle.get() == INVALID_HANDLE_VALUE) {
+               const auto error_code = GetLastError();
+               return ORT_MAKE_STATUS(ONNXRUNTIME, FAIL,
+          @@ -600,16 +600,14 @@ common::Status WindowsEnv::GetCanonicalPath(
+               PathString& canonical_path) const {
+             // adapted from MSVC STL std::filesystem::canonical() implementation
+             // https://github.com/microsoft/STL/blob/ed3cbf36416a385828e7a5987ca52cb42882d84b/stl/inc/filesystem#L2986
+          -  CREATEFILE2_EXTENDED_PARAMETERS param;
+          -  memset(&param, 0, sizeof(param));
+          -  param.dwSize = sizeof(CREATEFILE2_EXTENDED_PARAMETERS);
+          -  param.dwFileFlags = FILE_FLAG_BACKUP_SEMANTICS;
+          -  wil::unique_hfile file_handle{CreateFile2(
+          -      path.c_str(),
+          -      FILE_READ_ATTRIBUTES,
+          -      FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
+          -      OPEN_EXISTING,
+          -      &param)};
+          +  wil::unique_hfile file_handle{CreateFileW(
+          +      path.c_str(),                                              // LPCWSTR lpFileName
+          +      FILE_READ_ATTRIBUTES,                                      // DWORD dwDesiredAccess
+          +      FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,    // DWORD dwShareMode
+          +      nullptr,                                                   // LPSECURITY_ATTRIBUTES lpSecurityAttributes
+          +      OPEN_EXISTING,                                             // DWORD dwCreationDisposition
+          +      FILE_FLAG_BACKUP_SEMANTICS,                                // DWORD dwFlagsAndAttributes
+          +      nullptr)};                                                 // HANDLE hTemplateFile
+           
+             if (file_handle.get() == INVALID_HANDLE_VALUE) {
+               const auto error_code = GetLastError();
+          --- a/onnxruntime/core/platform/windows/env_time.cc
+          +++ b/onnxruntime/core/platform/windows/env_time.cc
+          @@ -18,6 +18,7 @@ limitations under the License.
+           
+           #include <time.h>
+           #include <windows.h>
+          +#include <sysinfoapi.h>
+           #include <chrono>
+           #include <numeric>
+           #include <algorithm>
+          @@ -28,14 +29,10 @@ namespace {
+           
+           class WindowsEnvTime : public EnvTime {
+            public:
+          -  WindowsEnvTime() : GetSystemTimePreciseAsFileTime_(GetSystemTimePreciseAsFileTime) {}
+          +  WindowsEnvTime() = default;
+           
+            uint64_t NowMicros() override {
+          -    if (GetSystemTimePreciseAsFileTime_ != NULL) {
+          -      // GetSystemTimePreciseAsFileTime function is only available in latest
+          -      // versions of Windows, so we need to check for its existence here.
+          -      // All std::chrono clocks on Windows proved to return
+          -      // values that may repeat, which is not good enough for some uses.
+          +    // System time in 100-ns ticks since 1601-01-01
+                 constexpr int64_t kUnixEpochStartTicks = 116444736000000000i64;
+                 constexpr int64_t kFtToMicroSec = 10;
+           
+          @@ -43,7 +40,8 @@ class WindowsEnvTime : public EnvTime {
+                 // just any microseconds because it is often used as an argument
+                 // to TimedWait() on condition variable
+                 FILETIME system_time;
+          -      GetSystemTimePreciseAsFileTime_(&system_time);
+          +      // Get current system time as FILETIME (available on all supported Windows versions)
+          +      GetSystemTimeAsFileTime(&system_time);
+           
+                 LARGE_INTEGER li;
+                 li.LowPart = system_time.dwLowDateTime;
+          @@ -54,16 +52,11 @@ class WindowsEnvTime : public EnvTime {
+                 li.QuadPart /= kFtToMicroSec;
+                 return li.QuadPart;
+               }
+          -    using namespace std::chrono;
+          -    return duration_cast<microseconds>(system_clock::now().time_since_epoch())
+          -        .count();
+            }
+           
+          -  void SleepForMicroseconds(int64_t micros) { Sleep(static_cast<DWORD>(micros) / 1000); }
+          -
+          - private:
+          -  typedef VOID(WINAPI* FnGetSystemTimePreciseAsFileTime)(LPFILETIME);
+          -  FnGetSystemTimePreciseAsFileTime GetSystemTimePreciseAsFileTime_;
+          +  void SleepForMicroseconds(int64_t micros) {
+          +    DWORD ms = static_cast<DWORD>((micros + 999) / 1000);
+          +    Sleep(ms);
+          +  }
+           };
+           
+           }  // namespace
+          PATCH
+
+          # Inject win7.patch into portfile.cmake (inside vcpkg_from_github() call)
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path("vcmi-overlay-onnxruntime/onnxruntime/portfile.cmake")
+          s = p.read_text(encoding="utf-8")
+
+          if "vcpkg_from_github" not in s:
+              raise SystemExit("Unexpected portfile.cmake format: missing vcpkg_from_github()")
+
+          # Try to add PATCHES if already present, otherwise create it.
+          import re
+
+          def add_patch_in_call(text: str) -> str:
+              # Locate first vcpkg_from_github( ... ) block (simple balanced-paren approximation)
+              m = re.search(r"vcpkg_from_github\\s*\\(", text)
+              if not m:
+                  return text
+              start = m.start()
+              i = m.end()
+              depth = 1
+              while i < len(text) and depth > 0:
+                  if text[i] == "(":
+                      depth += 1
+                  elif text[i] == ")":
+                      depth -= 1
+                  i += 1
+              block = text[m.start():i]  # inclusive of closing ')'
+              if "win7.patch" in block:
+                  return text
+
+              if re.search(r"\\bPATCHES\\b", block):
+                  # Insert right after PATCHES keyword line
+                  block2 = re.sub(r"(\\bPATCHES\\b\\s*\\n)", r"\\1    win7.patch\\n", block, count=1)
+              else:
+                  # Insert before closing ')'
+                  block2 = block[:-1] + "    PATCHES\\n    win7.patch\\n)\n"
+              return text[:m.start()] + block2 + text[i:]
+
+          s2 = add_patch_in_call(s)
+          p.write_text(s2, encoding="utf-8")
+          PY
+
+          rm -rf _ort_repo
+
       # NOTE: disabling debug for all triplets, so 64 host / 32 guest won't build debug version of 64-bit tools
       # Otherwise, x86 package size is way larger than needed
       - name: Disable debug builds
@@ -115,6 +308,7 @@ jobs:
             boost-iostreams boost-headers boost-foreach boost-format boost-crc boost-logic \
             boost-multi-array boost-ptr-container boost-heap boost-bimap boost-asio \
             boost-stacktrace boost-assign boost-geometry boost-uuid boost-process minizip \
+            libsquish onnx onnxruntime \
             --triplet "${{ matrix.triplet }}" \
             ${{ matrix.overlays }}
 
@@ -126,6 +320,7 @@ jobs:
             boost-iostreams boost-headers boost-foreach boost-format boost-crc boost-logic \
             boost-multi-array boost-ptr-container boost-heap boost-bimap boost-asio \
             boost-stacktrace boost-assign boost-geometry boost-uuid boost-process minizip \
+            libsquish onnx onnxruntime \
             --raw --triplet "${{ matrix.triplet }}" \
             ${{ matrix.overlays }} \
             --output=result/vcpkg
