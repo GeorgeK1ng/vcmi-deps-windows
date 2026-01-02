@@ -102,7 +102,14 @@ jobs:
 
           # Copy upstream vcpkg port (onnxruntime provides its own vcpkg ports)
           # https://onnxruntime.ai/docs/build/dependencies.html
-          cp -r _ort_repo/cmake/vcpkg-ports/onnxruntime vcmi-overlay-onnxruntime/
+          ORT_PORT_PATH="_ort_repo/cmake/vcpkg/vcpkg-ports/onnxruntime"
+          if [ ! -d "$ORT_PORT_PATH" ]; then
+            echo "onnxruntime vcpkg port not found at: $ORT_PORT_PATH"
+            echo "Listing possible directories under _ort_repo/cmake:"
+            find _ort_repo/cmake -maxdepth 3 -type d -name "vcpkg-ports" -o -name "vcpkg" || true
+            exit 1
+          fi
+          cp -r "$ORT_PORT_PATH" vcmi-overlay-onnxruntime/
 
 
       # NOTE: disabling debug for all triplets, so 64 host / 32 guest won't build debug version of 64-bit tools
